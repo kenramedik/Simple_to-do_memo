@@ -794,6 +794,7 @@ footer {
     <div class="hrow">
       <h1 class="day-title" id="dayTitle"></h1>
       <div class="actions">
+        <button class="icon-btn" id="sortBtn"></button>
         <button class="icon-btn" id="searchBtn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>
@@ -887,6 +888,7 @@ footer {
 
 <script>
 const STORE = 'memo-by-date-v1';
+const SORT_KEY = 'memo-sort-v1';
 
 /* ─── 다국어 ─── */
 const I18N = {
@@ -905,6 +907,7 @@ const I18N = {
     prevDay: '이전 날 (←)', nextDay: '다음 날 (→)',
     prevMonth: '이전 달', nextMonth: '다음 달',
     today: '오늘', searchTip: '검색 (Ctrl+F)',
+    sortAsc: '등록순 · 오래된 것부터', sortDesc: '등록순 · 최근 것부터',
     addPlaceholder: '할 일을 입력하세요', addTip: '추가 (Enter)',
     emptyTitle: '이 날은 비어 있습니다', emptySub: '아래에 입력해 할 일을 추가하세요',
     dragTip: '드래그해서 순서 변경', edit: '수정', del: '삭제',
@@ -937,6 +940,7 @@ const I18N = {
     prevDay: 'Previous day (←)', nextDay: 'Next day (→)',
     prevMonth: 'Previous month', nextMonth: 'Next month',
     today: 'Today', searchTip: 'Search (Ctrl+F)',
+    sortAsc: 'By date added · oldest first', sortDesc: 'By date added · newest first',
     addPlaceholder: 'Add a task', addTip: 'Add (Enter)',
     emptyTitle: 'Nothing here yet', emptySub: 'Add a task below',
     dragTip: 'Drag to reorder', edit: 'Edit', del: 'Delete',
@@ -1051,6 +1055,8 @@ const ICON = {
   ring:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="8"/></svg>',
   dot:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>',
   trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  sortAsc:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16l4 4 4-4"/><path d="M7 20V4"/><path d="M13 5h3"/><path d="M13 11h6"/><path d="M13 17h9"/></svg>',
+  sortDesc: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16l4 4 4-4"/><path d="M7 20V4"/><path d="M13 5h9"/><path d="M13 11h6"/><path d="M13 17h3"/></svg>',
 };
 
 /* 항목 상태: 0 미확인 · 1 완료 · 2 드랍
@@ -1064,6 +1070,9 @@ const isWeekend = d => d.getDay() === 0 || d.getDay() === 6;
 let data = load();
 let today = key(new Date());
 let cur = today;
+// 등록일 정렬 방향 - false 면 오래된 것이 위, true 면 최근 것이 위
+let sortDesc = false;
+try { sortDesc = localStorage.getItem(SORT_KEY) === 'desc'; } catch {}
 let calMonth = firstOfMonth(cur);
 let drag = null;
 let dropTo = null;
@@ -1133,9 +1142,10 @@ function addBizDays(k, n) {
 function itemsFor(k) {
   // idx - data[k] 안에서의 자리. 끌어 옮길 때 이 번호로 순서를 바꾼다.
   const own = (data[k] || []).map((it, idx) => ({ it, from: k, carried: false, idx }));
-  if (isWeekend(parse(k))) return own;
+  const order = arr => sortDesc ? arr.slice().reverse() : arr;
+  if (isWeekend(parse(k))) return order(own);
   // 먼 미래까지 미확인 항목이 줄줄이 보이지 않도록 앞쪽은 평일 3일까지만
-  if (k > addBizDays(today, LOOKAHEAD_BIZ_DAYS)) return own;
+  if (k > addBizDays(today, LOOKAHEAD_BIZ_DAYS)) return order(own);
 
   const carried = [];
   for (const date of Object.keys(data)) {
@@ -1148,8 +1158,8 @@ function itemsFor(k) {
   }
   carried.sort((a, b) => a.from.localeCompare(b.from));
   // 등록이 이른 것부터 - 넘어온 항목이 위, 그날 등록한 것이 아래.
-  // 맨 아래가 가장 최근에 등록한 항목이 된다.
-  return carried.concat(own);
+  // 맨 아래가 가장 최근에 등록한 항목이 된다. 내림차순이면 통째로 뒤집는다.
+  return order(carried.concat(own));
 }
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify(data)); } catch {}
@@ -1196,6 +1206,9 @@ function applyStaticText() {
   set('search-input', 'placeholder', L().searchPlaceholder);
   set('input', 'placeholder', L().addPlaceholder);
   todayBtn.textContent = L().today;
+  // 방향에 따라 아이콘도 같이 바뀐다
+  sortBtn.innerHTML = sortDesc ? ICON.sortDesc : ICON.sortAsc;
+  sortBtn.dataset.tip = sortDesc ? L().sortDesc : L().sortAsc;
 }
 
 function render() {
@@ -1483,17 +1496,19 @@ function renderList() {
 function updateDropTarget(y) {
   clearDropMarks();
   dropTo = null;
-  // 넘어온 항목은 순서 대상이 아니라 제외한다 - 남은 행의 위치가 data[cur] 순서와 같다
+  // 넘어온 항목은 순서 대상이 아니라 제외한다 - 남은 행이 data[cur] 항목과 일대일로 맞는다
   const rows = [...list.querySelectorAll('.item:not(.carried)')];
   if (!rows.length) return;
 
+  // 내림차순이면 화면 순서가 data[cur] 의 역순이다. 끼워 넣을 자리도 뒤집어야 한다.
+  const toData = v => sortDesc ? rows.length - v : v;
   const inPlace = to => to === drag.idx || to === drag.idx + 1;
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i].getBoundingClientRect();
     if (y < r.top || y > r.bottom) continue;
     const below = y - r.top > r.height / 2;
-    const to = i + (below ? 1 : 0);
+    const to = toData(i + (below ? 1 : 0));
     if (inPlace(to)) return;
     dropTo = to;
     rows[i].classList.add(below ? 'drop-below' : 'drop-above');
@@ -1502,9 +1517,11 @@ function updateDropTarget(y) {
 
   // 목록 위/아래 빈 공간으로 끌어 놓는 경우
   if (y < rows[0].getBoundingClientRect().top) {
-    if (!inPlace(0)) { dropTo = 0; rows[0].classList.add('drop-above'); }
+    const to = toData(0);
+    if (!inPlace(to)) { dropTo = to; rows[0].classList.add('drop-above'); }
   } else if (y > rows[rows.length - 1].getBoundingClientRect().bottom) {
-    if (!inPlace(rows.length)) { dropTo = rows.length; rows[rows.length - 1].classList.add('drop-below'); }
+    const to = toData(rows.length);
+    if (!inPlace(to)) { dropTo = to; rows[rows.length - 1].classList.add('drop-below'); }
   }
 }
 
@@ -1768,6 +1785,11 @@ monthBtn.onclick = toggleCal;
 prev.onclick = () => goto(shiftDay(cur, -1));
 next.onclick = () => goto(shiftDay(cur, 1));
 todayBtn.onclick = () => { checkDateRollover(); goto(today); };
+sortBtn.onclick = () => {
+  sortDesc = !sortDesc;
+  try { localStorage.setItem(SORT_KEY, sortDesc ? 'desc' : 'asc'); } catch {}
+  render();
+};
 calPrev.onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
 calNext.onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); };
 calClose.onclick = toggleCal;
