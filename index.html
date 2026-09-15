@@ -1131,7 +1131,8 @@ function addBizDays(k, n) {
 // 해당 날짜에 보여줄 항목 - 그날 등록한 것 + 아직 확인하지 않아 넘어온 것.
 // 미확인 항목은 등록일 다음 평일부터 매 평일에 나타나고, 확인하면 그 자리에서 멈춘다.
 function itemsFor(k) {
-  const own = (data[k] || []).map(it => ({ it, from: k, carried: false }));
+  // idx - data[k] 안에서의 자리. 끌어 옮길 때 이 번호로 순서를 바꾼다.
+  const own = (data[k] || []).map((it, idx) => ({ it, from: k, carried: false, idx }));
   if (isWeekend(parse(k))) return own;
   // 먼 미래까지 미확인 항목이 줄줄이 보이지 않도록 앞쪽은 평일 3일까지만
   if (k > addBizDays(today, LOOKAHEAD_BIZ_DAYS)) return own;
@@ -1146,7 +1147,9 @@ function itemsFor(k) {
     });
   }
   carried.sort((a, b) => a.from.localeCompare(b.from));
-  return own.concat(carried);
+  // 등록이 이른 것부터 - 넘어온 항목이 위, 그날 등록한 것이 아래.
+  // 맨 아래가 가장 최근에 등록한 항목이 된다.
+  return carried.concat(own);
 }
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify(data)); } catch {}
@@ -1401,7 +1404,7 @@ function renderList() {
     return;
   }
 
-  arr.forEach(({ it, from, carried }, i) => {
+  arr.forEach(({ it, from, carried, idx }) => {
     const row = document.createElement('div');
     const hex = colorOf(it);
     row.className = 'item' + stateClass(it.state)
@@ -1462,7 +1465,7 @@ function renderList() {
       if (e.button !== 0) return;
       if (e.target.closest('button, input')) return;
       if (row.querySelector('.edit')) return;
-      drag = { idx: i, row, startY: e.clientY, moved: false };
+      drag = { idx, row, startY: e.clientY, moved: false };
     };
 
     list.appendChild(row);
