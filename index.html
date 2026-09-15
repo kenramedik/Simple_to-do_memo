@@ -164,12 +164,19 @@ header { padding: 16px 20px 0; flex: none; }
   font-weight: 700;
   letter-spacing: -.02em;
   margin-top: 1px;
+  /* 창을 최소 폭까지 줄이면 제목이 먼저 줄어들어야 한다.
+     min-width:0 이 없으면 제목이 버티면서 오른쪽 버튼이 창 밖으로 밀려 잘린다. */
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .day-title .dow { font-size: 15px; font-weight: 500; color: var(--text-2); margin-left: 7px; }
 .day-title .dow.sun { color: var(--red); }
 .day-title .dow.sat { color: var(--blue); }
 
-.actions { display: flex; align-items: center; gap: 6px; }
+/* 버튼은 어떤 폭에서도 줄지 않는다 - 줄어드는 쪽은 위의 날짜 제목 */
+.actions { display: flex; align-items: center; gap: 6px; flex: none; }
 
 .chip {
   height: 30px;
@@ -423,7 +430,7 @@ header { padding: 16px 20px 0; flex: none; }
 .sr-item:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .sr-item.done .txt { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 1px; }
 .sr-item.done .box { background: var(--accent); border-color: var(--accent); color: #fff; }
-.sr-item[data-color].done .box { background: var(--c); border-color: var(--c); }
+.sr-item[data-color].done .box { background: var(--c); border-color: var(--c); color: var(--ink, #fff); }
 .sr-date { flex: none; font-size: 11px; font-weight: 600; color: var(--text-3); }
 mark {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
@@ -651,7 +658,8 @@ body.dragging-active * { cursor: grabbing !important; }
   width: 5px;
   background: var(--c);
 }
-.item .bar { border-radius: 11px 0 0 11px; }
+.item .bar,
+.sr-item .bar { border-radius: 11px 0 0 11px; }
 .pin-item .bar { width: 3px; border-radius: 8px 0 0 8px; }
 .item[data-color] { background: color-mix(in srgb, var(--c) 12%, var(--surface)); }
 .item[data-color]:hover { background: color-mix(in srgb, var(--c) 17%, var(--surface)); }
@@ -659,7 +667,7 @@ body.dragging-active * { cursor: grabbing !important; }
 .item[data-color].done:hover { background: color-mix(in srgb, var(--c) 11%, var(--surface)); }
 .item[data-color]:hover .box { border-color: var(--c); }
 .item[data-color].done .box,
-.pin-item[data-color].done .box { background: var(--c); border-color: var(--c); }
+.pin-item[data-color].done .box { background: var(--c); border-color: var(--c); color: var(--ink, #fff); }
 .pin-item[data-color]:hover .box { border-color: var(--c); }
 
 .colorpop {
@@ -1071,8 +1079,8 @@ let data = load();
 let today = key(new Date());
 let cur = today;
 // 등록일 정렬 방향 - false 면 오래된 것이 위, true 면 최근 것이 위
-let sortDesc = false;
-try { sortDesc = localStorage.getItem(SORT_KEY) === 'desc'; } catch {}
+let newestFirst = false;
+try { newestFirst = localStorage.getItem(SORT_KEY) === 'desc'; } catch {}
 let calMonth = firstOfMonth(cur);
 let drag = null;
 let dropTo = null;
@@ -1085,9 +1093,11 @@ let searchOpen = false;
 let menuState = { alwaysOnTop: false, minimizeToTray: true, deleteLock: false };
 
 const COLORS = {
-  red: '#b91c1c', orange: '#c2410c', amber: '#a16207', green: '#15803d',
+  red: '#c81e1e', orange: '#d9600a', amber: '#ca8a04', green: '#15803d',
   teal: '#006b8a', blue: '#1d4ed8', purple: '#7e22ce', gray: '#57574e',
 };
+// 노랑은 흰 체크와 대비가 2.9:1 밖에 안 나온다 - 이 색만 체크를 어둡게(5.8:1)
+const INK = { amber: '#1c1c1a' };
 const colorOf = it => (it.color && COLORS[it.color]) ? COLORS[it.color] : null;
 
 const stateClass = s => s === DONE ? ' done' : s === DROPPED ? ' dropped' : '';
@@ -1109,6 +1119,7 @@ function paintColor(row, it) {
   if (!hex) return;
   row.dataset.color = it.color;
   row.style.setProperty('--c', hex);
+  if (INK[it.color]) row.style.setProperty('--ink', INK[it.color]);
   const bar = document.createElement('span');
   bar.className = 'bar';
   row.prepend(bar);
@@ -1142,7 +1153,7 @@ function addBizDays(k, n) {
 function itemsFor(k) {
   // idx - data[k] 안에서의 자리. 끌어 옮길 때 이 번호로 순서를 바꾼다.
   const own = (data[k] || []).map((it, idx) => ({ it, from: k, carried: false, idx }));
-  const order = arr => sortDesc ? arr.slice().reverse() : arr;
+  const order = arr => newestFirst ? arr.slice().reverse() : arr;
   if (isWeekend(parse(k))) return order(own);
   // 먼 미래까지 미확인 항목이 줄줄이 보이지 않도록 앞쪽은 평일 3일까지만
   if (k > addBizDays(today, LOOKAHEAD_BIZ_DAYS)) return order(own);
@@ -1207,8 +1218,8 @@ function applyStaticText() {
   set('input', 'placeholder', L().addPlaceholder);
   todayBtn.textContent = L().today;
   // 방향에 따라 아이콘도 같이 바뀐다
-  sortBtn.innerHTML = sortDesc ? ICON.sortDesc : ICON.sortAsc;
-  sortBtn.dataset.tip = sortDesc ? L().sortDesc : L().sortAsc;
+  sortBtn.innerHTML = newestFirst ? ICON.sortDesc : ICON.sortAsc;
+  sortBtn.dataset.tip = newestFirst ? L().sortDesc : L().sortAsc;
 }
 
 function render() {
@@ -1251,7 +1262,10 @@ function searchAll(q) {
       if (it.text.toLowerCase().includes(q)) out.push({ date, it });
     });
   }
-  return out.sort((a, b) => b.date.localeCompare(a.date));
+  // 목록과 같은 기준 - 등록이 이른 것부터, 버튼을 뒤집으면 최근 것부터.
+  // 같은 날짜 안에서는 sort 가 안정 정렬이라 등록 순서가 그대로 남는다.
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  return newestFirst ? out.reverse() : out;
 }
 
 // innerHTML 대신 노드로 조립한다 - 검색어가 그대로 마크업이 되면 안 된다
@@ -1386,6 +1400,7 @@ function renderHeader() {
   dayTitle.innerHTML =
     `${L().dayNum(d.getDate())}<span class="dow ${w === 0 ? 'sun' : w === 6 ? 'sat' : ''}">${L().dowLong[w]}</span>`;
 
+  fitDow();
   todayBtn.disabled = cur === today;
   document.getElementById('app').classList.toggle('today-view', cur === today);
 
@@ -1396,6 +1411,17 @@ function renderHeader() {
     progFill.style.width = `${(settled / arr.length) * 100}%`;
     progText.textContent = `${settled}/${arr.length}`;
   }
+}
+
+/* 창이 좁으면 긴 요일 이름(Wednesday)이 오른쪽 버튼을 밀어낸다.
+   넘치는지 재보고 넘칠 때만 짧은 이름으로 바꾼다. 한글은 '수요일'이 짧아
+   대개 그대로 남고, 영어만 좁은 폭에서 'Wed' 가 된다. */
+function fitDow() {
+  const el = dayTitle.querySelector('.dow');
+  if (!el) return;
+  const w = parse(cur).getDay();
+  el.textContent = L().dowLong[w];
+  if (dayTitle.scrollWidth > dayTitle.clientWidth) el.textContent = L().dowShort[w];
 }
 
 function renderList() {
@@ -1501,7 +1527,7 @@ function updateDropTarget(y) {
   if (!rows.length) return;
 
   // 내림차순이면 화면 순서가 data[cur] 의 역순이다. 끼워 넣을 자리도 뒤집어야 한다.
-  const toData = v => sortDesc ? rows.length - v : v;
+  const toData = v => newestFirst ? rows.length - v : v;
   const inPlace = to => to === drag.idx || to === drag.idx + 1;
 
   for (let i = 0; i < rows.length; i++) {
@@ -1786,8 +1812,8 @@ prev.onclick = () => goto(shiftDay(cur, -1));
 next.onclick = () => goto(shiftDay(cur, 1));
 todayBtn.onclick = () => { checkDateRollover(); goto(today); };
 sortBtn.onclick = () => {
-  sortDesc = !sortDesc;
-  try { localStorage.setItem(SORT_KEY, sortDesc ? 'desc' : 'asc'); } catch {}
+  newestFirst = !newestFirst;
+  try { localStorage.setItem(SORT_KEY, newestFirst ? 'desc' : 'asc'); } catch {}
   render();
 };
 calPrev.onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
@@ -1865,6 +1891,7 @@ addEventListener('keydown', e => {
   if (e.key.length === 1 || e.key === 'Process' || e.key === 'Backspace') focusInput();
 }, true);
 
+addEventListener('resize', fitDow);
 searchBtn.onclick = () => { searchOpen ? closeSearch() : openSearch(); };
 document.getElementById('search-close').onclick = closeSearch;
 searchInput.oninput = renderSearch;
