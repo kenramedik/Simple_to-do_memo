@@ -473,6 +473,7 @@ mark {
 .pin-page { font-size: 10.5px; font-weight: 700; color: var(--accent); min-width: 26px; text-align: center; }
 
 .pin-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -651,7 +652,7 @@ body.dragging-active * { cursor: grabbing !important; }
   background: var(--c);
 }
 .item .bar { border-radius: 11px 0 0 11px; }
-.pin-item .bar { border-radius: 8px 0 0 8px; }
+.pin-item .bar { width: 3px; border-radius: 8px 0 0 8px; }
 .item[data-color] { background: color-mix(in srgb, var(--c) 12%, var(--surface)); }
 .item[data-color]:hover { background: color-mix(in srgb, var(--c) 17%, var(--surface)); }
 .item[data-color].done { background: transparent; }
