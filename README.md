@@ -4,6 +4,13 @@ A Windows desktop app for keeping a to-do list one day at a time.
 
 Each day gets its own list. Move between days with the arrows, the calendar, or the left/right arrow keys, and the app remembers what belongs to each date.
 
+> [!WARNING]
+> **Upgrading from 1.x or 2.x? Run [2.12.0](../../releases/tag/v2.12.0) once *before* you start 3.x.**
+>
+> 3.x cannot read the old version's storage directly. It reads a copy that only 2.12.0 writes (`%APPDATA%\SimpleToDoMemo\export.json`), and it does so on its **first launch**. If you skip 2.12.0, 3.x starts with an empty list.
+>
+> **Keep 2.12.0 and its `%APPDATA%\SimpleToDoMemo` folder** until you have checked that everything came across. See [Moving over from 2.x](#moving-over-from-2x-electron) below.
+
 Since 3.0.0 it is a native Windows app written in C# and WPF (`wpf/`). The window, menu bar, right-click menus and tray icon are real Windows controls. Versions 1.x–2.x ran on Electron, and that code is still in the repository root.
 
 ## Features
@@ -37,10 +44,10 @@ Data lives in `%APPDATA%\SimpleToDoMemoWpf`.
 
 ### Moving over from 2.x (Electron)
 
-1. Update to **[2.12.0](../../releases/tag/v2.12.0)** and run it once. It writes a copy of your tasks and links to `%APPDATA%\SimpleToDoMemo\export.json`.
+1. Install **[2.12.0](../../releases/tag/v2.12.0)** over your current version, start it, and close it again. This writes a copy of your tasks and links to `%APPDATA%\SimpleToDoMemo\export.json`.
 2. Start 3.x. On first launch it imports that copy, along with your language, link and window settings.
 
-`File → Import from Previous Version (Electron)…` imports again at any time. The two versions keep their data in separate folders, so you can keep 2.12.0 installed while you switch.
+Already started 3.x first and got an empty list? Your old data is still in place. Run 2.12.0 once, then use `File → Import from Previous Version (Electron)…` in 3.x. That menu imports again at any time. The two versions keep their data in separate folders, so you can keep 2.12.0 installed while you switch.
 
 ## Repository layout
 
