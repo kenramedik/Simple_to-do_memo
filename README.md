@@ -4,6 +4,8 @@ A Windows desktop app for keeping a to-do list one day at a time.
 
 Each day gets its own list. Move between days with the arrows, the calendar, or the left/right arrow keys, and the app remembers what belongs to each date.
 
+> **Version 3 is a native Windows app.** Starting with 3.0.0, the builds in [Releases](../../releases) are the C# / WPF rewrite, whose source lives in [Simple_to-do_memo-wpf](https://github.com/kenramedik/Simple_to-do_memo-wpf). This repository holds the Electron version (2.x). The rest of this README describes it.
+
 ## Features
 
 - **Day-by-day lists** — every date holds its own items; jump around with the arrows, the Today button, or the calendar
