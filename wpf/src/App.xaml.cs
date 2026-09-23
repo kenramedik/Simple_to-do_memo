@@ -47,14 +47,10 @@ public partial class App : Application
         }) { IsBackground = true };
         listener.Start();
 
-        bool firstRun = !File.Exists(Path.Combine(Storage.Dir, "settings.json"));
+        // Electron 판 자료는 저절로 가져오지 않는다 - 파일 메뉴의 '이전 버전에서 가져오기'로만 옮긴다
         Settings = Storage.LoadSettings();
         Memos = new Memos(Storage.LoadMemos());
         Links = Storage.LoadLinks();
-
-        // 처음 실행이면 Electron 판의 설정과 자료를 가져온다
-        if (firstRun) ImportElectronSettings();
-        if (firstRun && !Storage.HasData) ImportFromElectron(null, ask: false);
 
         if (Settings.Lang is not ("ko" or "en"))
         {
@@ -143,8 +139,8 @@ public partial class App : Application
     }
 
     /* ─── Electron 판에서 가져오기 ───
-       Electron 판(2.12.0 이상)은 메모와 링크를 %APPDATA%\SimpleToDoMemo\export.json 에 함께 적어 둔다.
-       브라우저 저장소(localStorage)는 다른 프로그램이 읽기 어려워 이 파일을 거친다. */
+       Electron 판의 브라우저 저장소(localStorage)를 직접 읽는다 (ElectronStore). 어느 버전이든, 앱을 따로
+       실행하지 않아도 된다. 읽지 못하면 2.12.0 이 남겨 둔 export.json 사본으로 대신한다. */
     static readonly string ElectronDir = Path.Combine(Storage.AppData, "SimpleToDoMemo");
 
     sealed class ElectronExport
@@ -154,10 +150,24 @@ public partial class App : Application
         [JsonPropertyName("newestFirst")] public bool? NewestFirst { get; set; }
     }
 
+    static ElectronExport? ReadElectron()
+    {
+        var raw = ElectronStore.Read(Storage.AppData);
+        if (raw != null)
+        {
+            var ex = new ElectronExport();
+            try { if (raw.Memos != null) ex.Memos = JsonSerializer.Deserialize<Dictionary<string, List<TodoItem>>>(raw.Memos, Storage.Json); } catch { }
+            try { if (raw.Links != null) ex.Links = JsonSerializer.Deserialize<LinksFile>(raw.Links, Storage.Json); } catch { }
+            if (raw.Sort != null) ex.NewestFirst = raw.Sort == "desc";
+            if (ex.Memos != null || ex.Links != null) return ex;
+        }
+        return Storage.Read<ElectronExport>(Path.Combine(ElectronDir, "export.json"));
+    }
+
     public void ImportFromElectron(Window? owner, bool ask)
     {
         var T = L.Cur;
-        var export = Storage.Read<ElectronExport>(Path.Combine(ElectronDir, "export.json"));
+        var export = ReadElectron();
         if (export == null || (export.Memos == null && export.Links == null))
         {
             if (ask) MessageBox.Show(owner!, T.ImportNone, L.Plain(T.ImportElectron).TrimEnd('…'), MessageBoxButton.OK, MessageBoxImage.Information);
@@ -169,34 +179,24 @@ public partial class App : Application
         if (export.Memos != null) { Memos = new Memos(Storage.Normalize(export.Memos)); Memos.Save(); }
         if (export.Links != null) { Links = Storage.NormalizeLinks(export.Links); SaveLinks(); }
         if (export.NewestFirst is bool nf) Settings.NewestFirst = nf;
+        // 숫자 링크 주소는 자료에 딸린 설정이라 함께 옮긴다. 언어·항상 위 등은 이 판에서 고른 대로 둔다.
+        if (ReadElectronLink() is { Url.Length: > 0 } link) Settings.Link = link;
         Settings.MigratedFromElectron = true;
         SaveSettings();
 
-        if (ask)
-        {
-            MainWin.Render();
-            linksWin?.Reload();
-            MessageBox.Show(owner!, T.ImportDone, L.Plain(T.ImportElectron).TrimEnd('…'), MessageBoxButton.OK, MessageBoxImage.Information);
-        }
+        MainWin?.Render();
+        linksWin?.Reload();
+        if (ask) MessageBox.Show(owner!, T.ImportDone, L.Plain(T.ImportElectron).TrimEnd('…'), MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    // Electron 판의 settings.json 은 그대로 읽을 수 있다 - 언어, 항상 위, 링크 설정 등을 옮긴다
-    void ImportElectronSettings()
+    // Electron 판의 settings.json 은 그대로 읽을 수 있다. 2.2.0 전에는 이름이 DateMemo 였다.
+    static NumberLink? ReadElectronLink()
     {
-        try
+        foreach (var dir in new[] { ElectronDir, Path.Combine(Storage.AppData, "DateMemo") })
         {
-            var path = Path.Combine(ElectronDir, "settings.json");
-            if (!File.Exists(path)) return;
-            var old = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), Storage.Json);
-            if (old == null) return;
-            Settings.Lang = old.Lang;
-            Settings.AlwaysOnTop = old.AlwaysOnTop;
-            Settings.MinimizeToTray = old.MinimizeToTray;
-            Settings.DeleteLock = old.DeleteLock;
-            Settings.Link = old.Link ?? new NumberLink();
-            Settings.Bounds = old.Bounds;
-            Settings.LinksBounds = old.LinksBounds;
+            var old = Storage.Read<Settings>(Path.Combine(dir, "settings.json"));
+            if (old != null) return old.Link;
         }
-        catch { }
+        return null;
     }
 }

@@ -117,10 +117,13 @@ static class TestDriver
     static async Task Run(App app)
     {
         var w = app.MainWin;
-        // 가져오기만 확인하는 모드 - 처음 실행에서 Electron 판 자료를 읽어 왔는지 적고 끝낸다
+        // 가져오기만 확인하는 모드 - 실행만으로는 아무것도 가져오지 않는지 본 뒤, 메뉴와 같은 경로로 가져온다
         if (Environment.GetEnvironmentVariable("SIMPLETODOMEMO_TEST_MODE") == "import")
         {
             await Wait(400);
+            log.Add($"before import: dates={app.Memos.Data.Count} links={app.Links.Sum(g => g.Links.Count)}");
+            app.ImportFromElectron(w, ask: false);
+            await Wait(300);
             log.Add("memos: " + string.Join(" ; ", app.Memos.Data.OrderBy(p => p.Key).Select(p => p.Key + "=" + string.Join(",", p.Value.Select(i => $"{i.Text}[{i.State}{(i.Color != null ? "," + i.Color : "")}{(i.PinnedAt != null ? ",pin" : "")}]")))));
             log.Add("links: " + LinkOrder(app) + " collapsed=" + string.Join(",", app.Links.Select(g => g.Collapsed)));
             log.Add($"settings: lang={app.Settings.Lang} newestFirst={app.Settings.NewestFirst} link={app.Settings.Link.Url}?{app.Settings.Link.Param} deleteLock={app.Settings.DeleteLock} migrated={app.Settings.MigratedFromElectron}");

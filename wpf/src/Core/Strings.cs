@@ -178,7 +178,7 @@ public sealed class Strings
         EditLinkTitle = "링크 수정", Name = "이름", Url = "주소",
         ImportAsk = "이전 버전(Electron)의 메모와 링크를 찾았습니다.\n지금 가져올까요? 이 버전에 있는 메모와 링크는 가져온 내용으로 바뀝니다.",
         ImportDone = "이전 버전의 메모와 링크를 가져왔습니다.",
-        ImportNone = "가져올 자료를 찾지 못했습니다.\n이전 버전을 2.12.0 이상으로 업데이트해 한 번 실행한 뒤 다시 시도하세요.",
+        ImportNone = "이전 버전의 메모와 링크를 찾지 못했습니다.\n이 PC에서 이전 버전(Electron)을 쓴 적이 없거나, 자료 폴더(%APPDATA%\\SimpleToDoMemo)가 지워진 것 같습니다.",
     };
 
     public static readonly Strings En = new()
@@ -238,7 +238,7 @@ public sealed class Strings
         EditLinkTitle = "Edit link", Name = "Name", Url = "URL",
         ImportAsk = "Found notes and links from the previous (Electron) version.\nImport them now? Notes and links in this version will be replaced.",
         ImportDone = "Imported notes and links from the previous version.",
-        ImportNone = "Nothing to import was found.\nUpdate the previous version to 2.12.0 or later, run it once, and try again.",
+        ImportNone = "No notes or links from the previous version were found.\nThe previous (Electron) version may never have been used on this PC, or its data folder (%APPDATA%\\SimpleToDoMemo) was removed.",
     };
 }
 
