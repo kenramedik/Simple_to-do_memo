@@ -125,6 +125,74 @@ svg { display: block; flex: none; }
 .menupop.ctx .mi.danger { color: var(--red); }
 .menupop.ctx .mi.danger:hover { background: rgba(184, 86, 77, .12); }
 
+/* ─────────── 링크 설정 대화상자 ─────────── */
+.dlg-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(20, 20, 18, .28);
+}
+.dlg-wrap[hidden] { display: none; }
+.dlg {
+  width: min(380px, 100%);
+  padding: 18px 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px -10px rgba(20, 20, 18, .30), 0 2px 6px rgba(20, 20, 18, .08);
+  animation: drop .16s cubic-bezier(.16, 1, .3, 1);
+}
+.dlg h2 { font-size: 15px; font-weight: 700; }
+.dlg-sub { margin-top: 5px; font-size: 12px; line-height: 1.55; color: var(--text-2); }
+.dlg-field { display: block; margin-top: 14px; }
+.dlg-field > span { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.dlg-field > span small { font-weight: 450; color: var(--text-3); }
+.dlg-field input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+.dlg-field input::placeholder { color: var(--text-3); }
+.dlg-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.dlg-field input.bad { border-color: var(--red); box-shadow: 0 0 0 3px rgba(184, 86, 77, .16); }
+.dlg-preview {
+  margin-top: 14px;
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: var(--bg);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.dlg-preview b { font-weight: 600; color: var(--text); }
+.dlg-preview.bad { color: var(--red); }
+.dlg-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 16px; }
+.dlg-btns button {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: background .12s, color .12s;
+}
+.dlg-btns .ghost { color: var(--text-2); }
+.dlg-btns .ghost:hover { background: var(--surface-hover); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.dlg-btns .primary { color: #fff; background: var(--accent); }
+.dlg-btns .primary:hover { background: var(--accent-hover); }
+.dlg-btns .primary:disabled { background: var(--text-3); cursor: default; }
+
 /* ─────────── 헤더 ─────────── */
 header { padding: 16px 20px 0; flex: none; }
 
@@ -611,6 +679,18 @@ body.dragging-active * { cursor: grabbing !important; }
 }
 .item.done .txt { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 1px; }
 
+/* 괄호 안 숫자 링크 - 완료·드랍 항목에서는 나머지 글자와 같이 흐려진다 */
+.txt a.idlink {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.txt a.idlink:hover { color: var(--accent-hover); }
+.done .txt a.idlink,
+.dropped .txt a.idlink { color: inherit; text-decoration: line-through; text-decoration-thickness: 1px; }
+
 /* 드랍 - 완료와 구분되게 회색으로 처리한다 */
 .item.dropped { background: transparent; box-shadow: none; border-color: transparent; }
 .item.dropped:hover { background: var(--surface-hover); border-color: var(--border); box-shadow: none; }
@@ -893,6 +973,25 @@ footer {
 <div id="tip" hidden></div>
 <div class="menupop ctx" id="ctx-pop" hidden></div>
 <div class="colorpop" id="color-pop" hidden></div>
+<div class="dlg-wrap" id="link-dlg" hidden>
+  <form class="dlg" id="link-form" autocomplete="off">
+    <h2 id="link-title"></h2>
+    <p class="dlg-sub" id="link-sub"></p>
+    <label class="dlg-field">
+      <span id="link-url-label"></span>
+      <input id="link-url" type="text" spellcheck="false" placeholder="https://example.com/view">
+    </label>
+    <label class="dlg-field">
+      <span id="link-param-label"></span>
+      <input id="link-param" type="text" spellcheck="false" placeholder="id">
+    </label>
+    <div class="dlg-preview" id="link-preview"></div>
+    <div class="dlg-btns">
+      <button type="button" class="ghost" id="link-cancel"></button>
+      <button type="submit" class="primary" id="link-save"></button>
+    </div>
+  </form>
+</div>
 
 <script>
 const STORE = 'memo-by-date-v1';
@@ -911,6 +1010,13 @@ const I18N = {
     menuFile: '파일', menuSettings: '설정', menuHelp: '도움말',
     exit: '종료', alwaysOnTop: '항상 위에 표시', minToTray: '최소화 시 트레이로',
     deleteLock: '삭제 잠금', about: '정보',
+    linkSettings: '링크 설정…', linkTitle: '링크 설정',
+    linkSub: '할 일에 (12345) 처럼 괄호 안에 다섯 자리 이상 숫자가 있으면 그 숫자에 이 주소로 링크를 답니다.',
+    linkUrl: '주소', linkParam: '파라미터 이름', linkOptional: '(선택)',
+    linkPreview: '예시', linkOff: '주소를 비워 두면 링크를 달지 않습니다.',
+    linkBadUrl: '주소는 http:// 또는 https:// 로 시작해야 하고 빈칸이 없어야 합니다.',
+    linkBadParam: '파라미터 이름에는 영문, 숫자, _ . ~ - 만 쓸 수 있습니다.',
+    cancel: '취소', save: '저장',
     openCalendar: '달력 열기', closeCalendar: '달력 접기 (Esc)',
     prevDay: '이전 날 (←)', nextDay: '다음 날 (→)',
     prevMonth: '이전 달', nextMonth: '다음 달',
@@ -944,6 +1050,13 @@ const I18N = {
     menuFile: 'File', menuSettings: 'Settings', menuHelp: 'Help',
     exit: 'Exit', alwaysOnTop: 'Always on Top', minToTray: 'Minimize to Tray',
     deleteLock: 'Delete Lock', about: 'About',
+    linkSettings: 'Link Settings…', linkTitle: 'Link Settings',
+    linkSub: 'When a task has a number of five or more digits in parentheses, like (12345), that number becomes a link to this address.',
+    linkUrl: 'URL', linkParam: 'Parameter name', linkOptional: '(optional)',
+    linkPreview: 'Example', linkOff: 'Leave the URL empty to turn links off.',
+    linkBadUrl: 'The URL must start with http:// or https:// and contain no spaces.',
+    linkBadParam: 'The parameter name may only use letters, digits and _ . ~ -',
+    cancel: 'Cancel', save: 'Save',
     openCalendar: 'Open calendar', closeCalendar: 'Close calendar (Esc)',
     prevDay: 'Previous day (←)', nextDay: 'Next day (→)',
     prevMonth: 'Previous month', nextMonth: 'Next month',
@@ -1268,14 +1381,57 @@ function searchAll(q) {
   return newestFirst ? out.reverse() : out;
 }
 
-// innerHTML 대신 노드로 조립한다 - 검색어가 그대로 마크업이 되면 안 된다
-function highlight(text, q) {
+/* 괄호 안에 다섯 자리 이상 숫자만 있으면 그 숫자에 링크를 단다. 주소는 설정 > 링크 설정에서 정한다.
+   innerHTML 대신 노드로 조립한다 - 항목 내용이나 검색어가 그대로 마크업이 되면 안 된다.
+   q 를 주면 처음 일치하는 부분을 <mark> 로 감싼다. 일치 구간이 링크 경계에 걸쳐도 조각별로 나눠 감싼다. */
+const LINK_ID = /\((\d{5,})\)/g;
+const LINK_URL_OK = /^https?:\/\/\S+$/i;
+const LINK_PARAM_OK = /^[\w.~-]+$/;
+
+// 파라미터 이름이 없으면 주소 끝에 숫자를 그대로 붙인다 (…/pages/12345 같은 경로형 주소)
+function buildLink(url, param, id) {
+  if (!param) return url + id;
+  const sep = !url.includes('?') ? '?' : /[?&]$/.test(url) ? '' : '&';
+  return `${url}${sep}${param}=${id}`;
+}
+const linkFor = id => {
+  const { url, param } = menuState.link || {};
+  return url ? buildLink(url, param, id) : null;
+};
+
+function richText(text, q) {
   const frag = document.createDocumentFragment();
-  const i = text.toLowerCase().indexOf(q);
-  if (i < 0) { frag.append(text); return frag; }
-  const m = document.createElement('mark');
-  m.textContent = text.slice(i, i + q.length);
-  frag.append(text.slice(0, i), m, text.slice(i + q.length));
+  const hi = q ? text.toLowerCase().indexOf(q) : -1;
+  const hiEnd = hi + (q ? q.length : 0);
+
+  // [from, to) 구간을 붙이되 검색어 일치 부분만 <mark> 로 감싼다
+  const put = (parent, from, to) => {
+    const a = Math.max(from, hi), b = Math.min(to, hiEnd);
+    if (hi < 0 || a >= b) { parent.append(text.slice(from, to)); return; }
+    const m = document.createElement('mark');
+    m.textContent = text.slice(a, b);
+    parent.append(text.slice(from, a), m, text.slice(b, to));
+  };
+
+  let pos = 0;
+  for (const match of text.matchAll(LINK_ID)) {
+    const href = linkFor(match[1]);
+    if (!href) break;
+    const start = match.index + 1;              // 여는 괄호 다음부터 숫자
+    const end = start + match[1].length;
+    put(frag, pos, start);
+    const a = document.createElement('a');
+    a.className = 'idlink';
+    a.href = href;
+    a.target = '_blank';
+    a.dataset.tip = a.href;
+    // 행 클릭(상태 바꾸기·날짜 이동)으로 번지지 않게 막는다. 실제로 여는 건 main 의 창 열기 처리가 맡는다
+    a.onclick = e => e.stopPropagation();
+    put(a, start, end);
+    frag.append(a);
+    pos = end;
+  }
+  put(frag, pos, text.length);
   return frag;
 }
 
@@ -1319,7 +1475,7 @@ function renderSearch() {
       <span class="box">${stateIcon(it.state)}</span>
       <span class="txt"></span>
       <span class="sr-date">${L().md(d.getMonth() + 1, d.getDate())}</span>`;
-    row.querySelector('.txt').append(highlight(it.text, q));
+    row.querySelector('.txt').append(richText(it.text, q));
     paintColor(row, it);
     row.dataset.tip = `${dateLabel(date)} · ${L().clickToOpen}`;
 
@@ -1373,7 +1529,7 @@ function renderPinned() {
         <button class="go">${ICON.jump}</button>
         <button class="off">${ICON.pinOn}</button>
       </span>`;
-    row.querySelector('.txt').textContent = it.text;
+    row.querySelector('.txt').append(richText(it.text));
     paintColor(row, it);
 
     const go = row.querySelector('.go');
@@ -1454,7 +1610,7 @@ function renderList() {
       <span class="txt"></span>
       ${carried ? `<button class="carry">${ICON.carry}${srcLabel(from)}</button>` : ''}
       ${it.pinnedAt ? `<span class="pin-mark" data-tip="${L().unpin}">${ICON.pinOn}</span>` : ''}`;
-    row.querySelector('.txt').textContent = it.text;
+    row.querySelector('.txt').append(richText(it.text));
     paintColor(row, it);
     if (carried) {
       const chip = row.querySelector('.carry');
@@ -1502,7 +1658,7 @@ function renderList() {
     // 넘어온 항목은 원래 날짜의 순서를 따르므로 여기서 끌어 옮기지 않는다
     if (!carried) row.onpointerdown = e => {
       if (e.button !== 0) return;
-      if (e.target.closest('button, input')) return;
+      if (e.target.closest('button, input, a')) return;
       if (row.querySelector('.edit')) return;
       drag = { idx, row, startY: e.clientY, moved: false };
     };
@@ -1874,13 +2030,14 @@ const isTextField = el => el && /^(INPUT|TEXTAREA)$/.test(el.tagName);
 // 한글 IME는 조합 시작 전에 포커스가 잡혀 있어야 첫 글자를 잃지 않는다.
 function focusInput() {
   if (isTextField(document.activeElement)) return;
-  if (menuOpen) return;
+  if (menuOpen || linkDlgOpen()) return;
   (searchOpen ? searchInput : input).focus();
 }
 
 addEventListener('focus', () => { checkDateRollover(); focusInput(); });
 addEventListener('mouseup', () => setTimeout(focusInput, 0));
 addEventListener('keydown', e => {
+  if (linkDlgOpen()) return;
   if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     searchOpen ? searchInput.select() : openSearch();
@@ -1897,6 +2054,10 @@ document.getElementById('search-close').onclick = closeSearch;
 searchInput.oninput = renderSearch;
 
 document.onkeydown = e => {
+  if (linkDlgOpen()) {
+    if (e.key === 'Escape') closeLinkDlg();
+    return;
+  }
   if (e.key === 'Escape') {
     if (!colorPop.hidden) closeColorPop();
     else if (!ctxPop.hidden) closeCtxMenu();
@@ -1918,6 +2079,75 @@ input.focus();
 
 render();
 
+/* ─── 링크 설정 대화상자 ─── */
+const linkDlg = document.getElementById('link-dlg');
+const linkUrl = document.getElementById('link-url');
+const linkParam = document.getElementById('link-param');
+const linkPreview = document.getElementById('link-preview');
+const linkSave = document.getElementById('link-save');
+
+// 대화상자가 떠 있는 동안에는 포커스를 입력칸으로 빼앗거나 방향키로 날짜를 옮기지 않는다.
+// 아래 const 보다 먼저 불릴 수 있는 곳에서 쓰므로 요소를 직접 찾는다.
+function linkDlgOpen() { return !document.getElementById('link-dlg').hidden; }
+
+function checkLinkForm() {
+  const url = linkUrl.value.trim(), param = linkParam.value.trim();
+  const badUrl = url !== '' && !LINK_URL_OK.test(url);
+  const badParam = param !== '' && !LINK_PARAM_OK.test(param);
+  linkUrl.classList.toggle('bad', badUrl);
+  linkParam.classList.toggle('bad', badParam);
+  linkSave.disabled = badUrl || badParam;
+  linkPreview.classList.toggle('bad', badUrl || badParam);
+  linkPreview.replaceChildren();
+  if (badUrl || badParam) linkPreview.textContent = badUrl ? L().linkBadUrl : L().linkBadParam;
+  else if (!url) linkPreview.textContent = L().linkOff;
+  else {
+    const b = document.createElement('b');
+    b.textContent = buildLink(url, param, '12345');
+    linkPreview.append(`${L().linkPreview}: (12345) → `, b);
+  }
+}
+
+function openLinkDlg() {
+  const set = (id, text) => { document.getElementById(id).textContent = text; };
+  set('link-title', L().linkTitle);
+  set('link-sub', L().linkSub);
+  set('link-url-label', L().linkUrl);
+  document.getElementById('link-param-label').innerHTML =
+    `${L().linkParam} <small>${L().linkOptional}</small>`;
+  set('link-cancel', L().cancel);
+  set('link-save', L().save);
+
+  const { url = '', param = '' } = menuState.link || {};
+  linkUrl.value = url;
+  linkParam.value = param;
+  checkLinkForm();
+  hideTip();
+  linkDlg.hidden = false;
+  linkUrl.focus();
+  linkUrl.select();
+}
+
+function closeLinkDlg() {
+  linkDlg.hidden = true;
+  // 숨긴 입력칸이 여전히 activeElement 로 남아 focusInput 이 그냥 돌아가 버린다
+  document.activeElement?.blur();
+  focusInput();
+}
+
+linkUrl.oninput = linkParam.oninput = checkLinkForm;
+document.getElementById('link-cancel').onclick = closeLinkDlg;
+// 바깥 어두운 곳을 누르면 닫는다. 입력칸에서 끌다가 밖에서 놓은 경우는 제외한다.
+linkDlg.onmousedown = e => { linkDlg.dataset.downOut = e.target === linkDlg ? '1' : ''; };
+linkDlg.onclick = e => { if (e.target === linkDlg && linkDlg.dataset.downOut) closeLinkDlg(); };
+document.getElementById('link-form').onsubmit = async e => {
+  e.preventDefault();
+  if (linkSave.disabled || !window.appMenu) return;
+  menuState = await appMenu.setLink({ url: linkUrl.value.trim(), param: linkParam.value.trim() });
+  closeLinkDlg();
+  render();
+};
+
 /* ─── 메뉴바 ─── */
 // 메뉴 이름은 언어에 따라 바뀌지만, Language 메뉴만은 항상 영어로 둔다.
 const menus = () => ({
@@ -1929,6 +2159,8 @@ const menus = () => ({
     { label: L().minToTray, action: 'toggleMinimizeToTray', check: 'minimizeToTray' },
     { sep: true },
     { label: L().deleteLock, action: 'toggleDeleteLock', check: 'deleteLock' },
+    { sep: true },
+    { label: L().linkSettings, run: openLinkDlg },
   ],
   language: [
     { label: '한국어', action: 'langKo', checkIf: () => lang === 'ko' },
@@ -1969,6 +2201,7 @@ function openMenu(name) {
     mi.querySelector('span:not(.tick):not(.accel)').textContent = spec.label;
     mi.onclick = async () => {
       closeMenu();
+      if (spec.run) { spec.run(); return; }
       if (!window.appMenu) return;
       menuState = await appMenu.run(spec.action);
       lang = menuState.lang;

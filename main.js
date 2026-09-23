@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, nativeTheme, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, nativeTheme, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -30,7 +30,11 @@ const T = {
 let win = null;
 let tray = null;
 
-const settings = { lang: null, alwaysOnTop: false, minimizeToTray: true, deleteLock: true, bounds: null };
+// link: 괄호 안 숫자에 달 링크. url 이 비어 있으면 링크를 달지 않는다.
+const settings = {
+  lang: null, alwaysOnTop: false, minimizeToTray: true, deleteLock: true, bounds: null,
+  link: { url: '', param: '' },
+};
 const t = key => T[settings.lang === 'en' ? 'en' : 'ko'][key];
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -75,6 +79,16 @@ function setDeleteLock(value) {
   saveSettings();
   pushState();
 }
+// 렌더러가 이미 검사하지만, 설정 파일에 들어가는 값이라 여기서 한 번 더 거른다
+function setLink(value) {
+  const url = String(value?.url ?? '').trim();
+  const param = String(value?.param ?? '').trim();
+  if (url && !/^https?:\/\/\S+$/i.test(url)) return;
+  if (param && !/^[\w.~-]+$/.test(param)) return;
+  settings.link = { url, param };
+  saveSettings();
+  pushState();
+}
 
 // 메뉴바는 HTML로 그리므로, 렌더러가 체크 상태를 알아야 한다.
 const menuState = () => ({
@@ -82,6 +96,7 @@ const menuState = () => ({
   alwaysOnTop: settings.alwaysOnTop,
   minimizeToTray: settings.minimizeToTray,
   deleteLock: settings.deleteLock,
+  link: { url: settings.link?.url || '', param: settings.link?.param || '' },
 });
 function pushState() {
   if (win && !win.isDestroyed()) win.webContents.send('menu:state', menuState());
@@ -191,6 +206,14 @@ function createWindow() {
     },
   });
 
+  // 항목의 링크는 앱 안에 새 창을 띄우지 않고 기본 브라우저로 연다
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  // 링크가 앱 화면 자체를 바꿔 버리지 않게 막는다
+  win.webContents.on('will-navigate', e => e.preventDefault());
+
   win.webContents.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
     const key = (input.key || '').toLowerCase();
@@ -233,6 +256,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => app.quit());
 
   ipcMain.handle('menu:state', () => menuState());
+  ipcMain.handle('link:set', (_e, value) => { setLink(value); return menuState(); });
   ipcMain.handle('menu:action', (_e, name) => {
     switch (name) {
       case 'quit': app.quit(); break;
