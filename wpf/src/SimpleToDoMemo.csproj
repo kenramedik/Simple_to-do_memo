@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- 트레이 아이콘(NotifyIcon)만 WinForms 에서 빌려 쓴다 -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>SimpleToDoMemo</RootNamespace>
+    <AssemblyName>SimpleToDoMemo</AssemblyName>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>3.0.0</Version>
+    <Product>Simple To-Do Memo</Product>
+    <Authors>goni</Authors>
+    <Copyright>goni</Copyright>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- WPF 는 app.manifest 의 DPI 설정을 쓴다. WinForms 는 트레이 아이콘에만 쓰므로 이 경고는 해당 없음 -->
+    <NoWarn>WFAC010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Fonts\*.otf" />
+    <Resource Include="Assets\icon.png" />
+    <Resource Include="Assets\tray.png" />
+    <Resource Include="Assets\icon.ico" />
+  </ItemGroup>
+
+</Project>

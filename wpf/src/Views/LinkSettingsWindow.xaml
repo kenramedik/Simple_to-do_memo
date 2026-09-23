@@ -1,0 +1,25 @@
+<Window x:Class="SimpleToDoMemo.Views.LinkSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource AppWindow}" Background="{StaticResource Surface}"
+        Width="400" SizeToContent="Height" ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <Border Padding="20,16,20,18">
+    <StackPanel>
+        <TextBlock x:Name="Sub" FontSize="12" Foreground="{StaticResource Text2}" TextWrapping="Wrap" LineHeight="19"/>
+        <TextBlock x:Name="UrlLabel" Style="{StaticResource DlgLabel}"/>
+        <TextBox x:Name="UrlBox" Style="{StaticResource DlgInput}" Tag="https://example.com/view"/>
+        <TextBlock Style="{StaticResource DlgLabel}">
+            <Run x:Name="ParamLabel"/> <Run x:Name="ParamOptional" FontWeight="Normal" Foreground="{StaticResource Text3}"/>
+        </TextBlock>
+        <TextBox x:Name="ParamBox" Style="{StaticResource DlgInput}" Tag="id"/>
+        <Border x:Name="PreviewBox" Margin="0,14,0,0" Padding="10,9" CornerRadius="8" Background="{StaticResource Bg}">
+            <TextBlock x:Name="Preview" FontSize="12" Foreground="{StaticResource Text2}" TextWrapping="Wrap"/>
+        </Border>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="CancelBtn" Style="{StaticResource GhostBtn}" IsCancel="True"/>
+            <Button x:Name="SaveBtn" Style="{StaticResource PrimaryBtn}" IsDefault="True" Margin="6,0,0,0"/>
+        </StackPanel>
+    </StackPanel>
+    </Border>
+</Window>
