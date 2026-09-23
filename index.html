@@ -882,6 +882,10 @@ footer {
     <div class="hrow">
       <h1 class="day-title" id="dayTitle"></h1>
       <div class="actions">
+        <button class="icon-btn" id="linksBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+        </button>
         <button class="icon-btn" id="sortBtn"></button>
         <button class="icon-btn" id="searchBtn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1008,7 +1012,7 @@ const I18N = {
     md: (m, d) => `${m}월 ${d}일`,
     full: (y, m, d, w) => `${y}년 ${m}월 ${d}일 (${w})`,
     menuFile: '파일', menuSettings: '설정', menuHelp: '도움말',
-    exit: '종료', alwaysOnTop: '항상 위에 표시', minToTray: '최소화 시 트레이로',
+    exit: '종료', openLinks: '링크 모음', alwaysOnTop: '항상 위에 표시', minToTray: '최소화 시 트레이로',
     deleteLock: '삭제 잠금', about: '정보',
     linkSettings: '링크 설정…', linkTitle: '링크 설정',
     linkSub: '할 일에 (12345) 처럼 괄호 안에 다섯 자리 이상 숫자가 있으면 그 숫자에 이 주소로 링크를 답니다.',
@@ -1020,7 +1024,7 @@ const I18N = {
     openCalendar: '달력 열기', closeCalendar: '달력 접기 (Esc)',
     prevDay: '이전 날 (←)', nextDay: '다음 날 (→)',
     prevMonth: '이전 달', nextMonth: '다음 달',
-    today: '오늘', searchTip: '검색 (Ctrl+F)',
+    today: '오늘', searchTip: '검색 (Ctrl+F)', linksTip: '링크 모음 (Ctrl+L)',
     sortAsc: '등록순 · 오래된 것부터', sortDesc: '등록순 · 최근 것부터',
     addPlaceholder: '할 일을 입력하세요', addTip: '추가 (Enter)',
     emptyTitle: '이 날은 비어 있습니다', emptySub: '아래에 입력해 할 일을 추가하세요',
@@ -1048,7 +1052,7 @@ const I18N = {
     md: (m, d) => `${MONTHS[m - 1].slice(0, 3)} ${d}`,
     full: (y, m, d, w) => `${w}, ${MONTHS[m - 1]} ${d}, ${y}`,
     menuFile: 'File', menuSettings: 'Settings', menuHelp: 'Help',
-    exit: 'Exit', alwaysOnTop: 'Always on Top', minToTray: 'Minimize to Tray',
+    exit: 'Exit', openLinks: 'Links', alwaysOnTop: 'Always on Top', minToTray: 'Minimize to Tray',
     deleteLock: 'Delete Lock', about: 'About',
     linkSettings: 'Link Settings…', linkTitle: 'Link Settings',
     linkSub: 'When a task has a number of five or more digits in parentheses, like (12345), that number becomes a link to this address.',
@@ -1060,7 +1064,7 @@ const I18N = {
     openCalendar: 'Open calendar', closeCalendar: 'Close calendar (Esc)',
     prevDay: 'Previous day (←)', nextDay: 'Next day (→)',
     prevMonth: 'Previous month', nextMonth: 'Next month',
-    today: 'Today', searchTip: 'Search (Ctrl+F)',
+    today: 'Today', searchTip: 'Search (Ctrl+F)', linksTip: 'Links (Ctrl+L)',
     sortAsc: 'By date added · oldest first', sortDesc: 'By date added · newest first',
     addPlaceholder: 'Add a task', addTip: 'Add (Enter)',
     emptyTitle: 'Nothing here yet', emptySub: 'Add a task below',
@@ -1318,6 +1322,7 @@ function applyStaticText() {
 
   tip('monthBtn', L().openCalendar);
   tip('searchBtn', L().searchTip);
+  tip('linksBtn', L().linksTip);
   tip('prev', L().prevDay);
   tip('next', L().nextDay);
   tip('calPrev', L().prevMonth);
@@ -2050,6 +2055,7 @@ addEventListener('keydown', e => {
 
 addEventListener('resize', fitDow);
 searchBtn.onclick = () => { searchOpen ? closeSearch() : openSearch(); };
+linksBtn.onclick = () => { if (window.appMenu) appMenu.run('openLinks'); };
 document.getElementById('search-close').onclick = closeSearch;
 searchInput.oninput = renderSearch;
 
@@ -2152,6 +2158,8 @@ document.getElementById('link-form').onsubmit = async e => {
 // 메뉴 이름은 언어에 따라 바뀌지만, Language 메뉴만은 항상 영어로 둔다.
 const menus = () => ({
   file: [
+    { label: L().openLinks, accel: 'Ctrl+L', action: 'openLinks' },
+    { sep: true },
     { label: L().exit, accel: 'Ctrl+Q', action: 'quit' },
   ],
   settings: [

@@ -13,6 +13,7 @@ const T = {
     about: '정보',
     createdBy: '제작자',
     aboutBody: '하루 단위로 메모를 남기고 완료 표시를 할 수 있습니다.',
+    linksTitle: '링크 모음',
     ok: '확인',
   },
   en: {
@@ -23,16 +24,18 @@ const T = {
     about: 'About',
     createdBy: 'Created by',
     aboutBody: 'Keep a to-do list one day at a time.',
+    linksTitle: 'Links',
     ok: 'OK',
   },
 };
 
 let win = null;
+let linksWin = null;
 let tray = null;
 
 // link: 괄호 안 숫자에 달 링크. url 이 비어 있으면 링크를 달지 않는다.
 const settings = {
-  lang: null, alwaysOnTop: false, minimizeToTray: true, deleteLock: true, bounds: null,
+  lang: null, alwaysOnTop: false, minimizeToTray: true, deleteLock: true, bounds: null, linksBounds: null,
   link: { url: '', param: '' },
 };
 const t = key => T[settings.lang === 'en' ? 'en' : 'ko'][key];
@@ -55,6 +58,7 @@ function setLang(value) {
   settings.lang = value;
   saveSettings();
   if (win && !win.isDestroyed()) win.setTitle(titleText());
+  if (linksWin) linksWin.setTitle(t('linksTitle'));
   if (tray) tray.setToolTip(titleText());
   applyMenus();
   pushState();
@@ -64,6 +68,7 @@ function setLang(value) {
 function setAlwaysOnTop(value) {
   settings.alwaysOnTop = value;
   win.setAlwaysOnTop(value);
+  if (linksWin) linksWin.setAlwaysOnTop(value);
   saveSettings();
   applyMenus();
   pushState();
@@ -99,7 +104,9 @@ const menuState = () => ({
   link: { url: settings.link?.url || '', param: settings.link?.param || '' },
 });
 function pushState() {
-  if (win && !win.isDestroyed()) win.webContents.send('menu:state', menuState());
+  const s = menuState();
+  if (win && !win.isDestroyed()) win.webContents.send('menu:state', s);
+  if (linksWin) linksWin.webContents.send('menu:state', s);
 }
 
 /* ── 트레이 ── */
@@ -187,6 +194,23 @@ function askLanguage() {
 }
 
 /* ── 창 ── */
+// 두 창 모두 링크는 앱 안에 새 창을 띄우지 않고 기본 브라우저로 열고,
+// 링크가 앱 화면 자체를 바꿔 버리지 않게 막는다.
+function guardContents(wc) {
+  wc.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  wc.on('will-navigate', e => e.preventDefault());
+  wc.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
+    const key = (input.key || '').toLowerCase();
+    if (key === 't') { e.preventDefault(); setAlwaysOnTop(!settings.alwaysOnTop); }
+    else if (key === 'q') { e.preventDefault(); app.quit(); }
+    else if (key === 'l') { e.preventDefault(); openLinksWindow(); }
+  });
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 460,
@@ -206,20 +230,7 @@ function createWindow() {
     },
   });
 
-  // 항목의 링크는 앱 안에 새 창을 띄우지 않고 기본 브라우저로 연다
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  // 링크가 앱 화면 자체를 바꿔 버리지 않게 막는다
-  win.webContents.on('will-navigate', e => e.preventDefault());
-
-  win.webContents.on('before-input-event', (e, input) => {
-    if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
-    const key = (input.key || '').toLowerCase();
-    if (key === 't') { e.preventDefault(); setAlwaysOnTop(!settings.alwaysOnTop); }
-    else if (key === 'q') { e.preventDefault(); app.quit(); }
-  });
+  guardContents(win.webContents);
 
   win.loadFile('index.html');
   win.once('ready-to-show', () => win.show());
@@ -236,6 +247,44 @@ function createWindow() {
     if (!win.isMinimized() && !win.isFullScreen()) settings.bounds = win.getBounds();
     saveSettings();
   });
+  // 링크 창만 남으면 메인 창을 되살릴 길이 없다 - 같이 닫는다
+  win.on('closed', () => { if (linksWin) linksWin.close(); });
+}
+
+// 링크 모음 창 - 이미 떠 있으면 앞으로 가져온다
+function openLinksWindow() {
+  if (linksWin) {
+    if (linksWin.isMinimized()) linksWin.restore();
+    linksWin.show();
+    linksWin.focus();
+    return;
+  }
+  linksWin = new BrowserWindow({
+    width: 420,
+    height: 640,
+    minWidth: 340,
+    minHeight: 420,
+    ...(settings.linksBounds || {}),
+    title: t('linksTitle'),
+    icon: loadIcon('icon.png'),
+    backgroundColor: '#f5f5f3',
+    alwaysOnTop: settings.alwaysOnTop,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  guardContents(linksWin.webContents);
+  linksWin.loadFile('links.html');
+  linksWin.once('ready-to-show', () => linksWin.show());
+  linksWin.on('page-title-updated', e => e.preventDefault());
+  linksWin.on('close', () => {
+    if (!linksWin.isMinimized() && !linksWin.isFullScreen()) settings.linksBounds = linksWin.getBounds();
+    saveSettings();
+  });
+  linksWin.on('closed', () => { linksWin = null; });
 }
 
 /* ── 앱 수명주기 ── */
@@ -266,6 +315,7 @@ if (!app.requestSingleInstanceLock()) {
       case 'langKo': setLang('ko'); break;
       case 'langEn': setLang('en'); break;
       case 'about': showAbout(); break;
+      case 'openLinks': openLinksWindow(); break;
     }
     return menuState();
   });
