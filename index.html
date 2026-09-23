@@ -1291,6 +1291,7 @@ function itemsFor(k) {
 }
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify(data)); } catch {}
+  window.appMenu?.exportData?.('memos', data);
 }
 function key(d) {
   const p = n => String(n).padStart(2, '0');
@@ -1975,6 +1976,7 @@ todayBtn.onclick = () => { checkDateRollover(); goto(today); };
 sortBtn.onclick = () => {
   newestFirst = !newestFirst;
   try { localStorage.setItem(SORT_KEY, newestFirst ? 'desc' : 'asc'); } catch {}
+  window.appMenu?.exportData?.('newestFirst', newestFirst);
   render();
 };
 calPrev.onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
@@ -2084,6 +2086,14 @@ document.onkeydown = e => {
 input.focus();
 
 render();
+// 실행할 때도 한 번 적어 둔다 - 업데이트 뒤 아무것도 고치지 않아도 네이티브 판이 가져갈 수 있다
+window.appMenu?.exportData?.('memos', data);
+window.appMenu?.exportData?.('newestFirst', newestFirst);
+// 링크 모음은 같은 저장소에 있다 - 링크 창을 한 번도 열지 않아도 함께 적는다
+try {
+  const links = JSON.parse(localStorage.getItem('links-v1'));
+  if (links?.groups) window.appMenu?.exportData?.('links', links);
+} catch {}
 
 /* ─── 링크 설정 대화상자 ─── */
 const linkDlg = document.getElementById('link-dlg');

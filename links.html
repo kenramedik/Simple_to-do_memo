@@ -692,6 +692,7 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify({ groups })); } catch {}
+  window.appMenu?.exportData?.('links', { groups });
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const groupById = id => groups.find(g => g.id === id);
@@ -1293,6 +1294,7 @@ if (window.appMenu) {
   appMenu.onState(s => { menuState = s; lang = s.lang; render(); });
 }
 render();
+window.appMenu?.exportData?.('links', { groups });
 q.blur();
 nameIn.focus();
 </script>

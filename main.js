@@ -287,6 +287,32 @@ function openLinksWindow() {
   linksWin.on('closed', () => { linksWin = null; });
 }
 
+/* ── 자료 내보내기 ──
+   할 일과 링크는 브라우저 저장소(localStorage)에 있어 다른 프로그램이 읽기 어렵다.
+   네이티브(WPF) 판이 가져갈 수 있도록 바뀔 때마다 userData/export.json 에 사본을 적는다. */
+const exportFile = () => path.join(app.getPath('userData'), 'export.json');
+let exportData = null;
+let exportTimer = null;
+function setExport(key, value) {
+  if (!['memos', 'links', 'newestFirst'].includes(key)) return;
+  if (!exportData) {
+    try { exportData = JSON.parse(fs.readFileSync(exportFile(), 'utf8')); } catch { exportData = {}; }
+  }
+  exportData[key] = value;
+  // 입력할 때마다 쓰지 않도록 잠깐 모았다가 한 번에 쓴다
+  clearTimeout(exportTimer);
+  exportTimer = setTimeout(flushExport, 400);
+}
+function flushExport() {
+  clearTimeout(exportTimer);
+  if (!exportData) return;
+  try {
+    const tmp = exportFile() + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(exportData, null, 2));
+    fs.renameSync(tmp, exportFile());
+  } catch {}
+}
+
 /* ── 앱 수명주기 ── */
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -303,6 +329,8 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
+  app.on('before-quit', flushExport);
+  ipcMain.on('data:export', (_e, key, value) => setExport(key, value));
 
   ipcMain.handle('menu:state', () => menuState());
   ipcMain.handle('link:set', (_e, value) => { setLink(value); return menuState(); });

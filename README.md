@@ -42,7 +42,7 @@ npm run icon     # regenerate the icons in assets/
 npm run dist     # build the installer and the zip
 ```
 
-Data lives in `%APPDATA%\SimpleToDoMemo`.
+Data lives in `%APPDATA%\SimpleToDoMemo`. Since 2.12.0 the app also keeps a plain JSON copy of your tasks and links in `export.json` in that folder. The native Windows version ([Simple_to-do_memo-wpf](https://github.com/kenramedik/Simple_to-do_memo-wpf)) imports it on first launch.
 
 ## Built with
 
