@@ -26,7 +26,7 @@ To import again later, use `File → Import from Previous Version (Electron)…`
 
 ## Install
 
-Grab a build from [Releases](../../releases).
+Builds are published in the [Simple_to-do_memo releases](https://github.com/kenramedik/Simple_to-do_memo/releases) (version 3.0.0 and later).
 
 - `SimpleToDoMemo-x.y.z-win-x64.zip`: unpack anywhere and run `SimpleToDoMemo.exe`. Everything it needs is inside. The first launch takes a few seconds longer while Windows unpacks a few runtime files
 - `SimpleToDoMemo-x.y.z-win-x64-lite.exe`: a 6 MB build for machines that already have the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0). If the runtime is missing, Windows offers to download it
