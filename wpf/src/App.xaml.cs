@@ -16,8 +16,8 @@ public partial class App : Application
     public static readonly string Version =
         Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "";
 
-    const string MutexName = "SimpleToDoMemoWpf.SingleInstance";
-    const string ShowEventName = "SimpleToDoMemoWpf.Show";
+    string MutexName = "SimpleToDoMemoWpf.SingleInstance";
+    string ShowEventName = "SimpleToDoMemoWpf.Show";
 
     Mutex? mutex;
     EventWaitHandle? showEvent;
@@ -32,7 +32,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // 두 번째 실행이면 이미 떠 있는 창을 앞으로 불러오고 끝낸다
+        // 두 번째 실행이면 이미 떠 있는 창을 앞으로 불러오고 끝낸다.
+        // 자료 폴더를 바꿔 띄운 경우(테스트)는 다른 인스턴스로 본다 - 평소 쓰는 창에 넘기지 않는다.
+        var suffix = Storage.AppData == Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
+            ? "" : "." + Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(Storage.AppData.ToLowerInvariant())))[..12];
+        MutexName += suffix;
+        ShowEventName += suffix;
         mutex = new Mutex(true, MutexName, out bool first);
         if (!first)
         {

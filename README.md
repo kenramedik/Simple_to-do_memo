@@ -5,7 +5,7 @@ A Windows desktop app for keeping a to-do list one day at a time.
 Each day gets its own list. Move between days with the arrows, the calendar, or the left/right arrow keys, and the app remembers what belongs to each date.
 
 > [!IMPORTANT]
-> **Upgrading from 1.x or 2.x? Your notes do not move over on their own.** 3.x starts with an empty list. Bring them across with **`File → Import from Previous Version (Electron)…`**.
+> **Upgrading from 1.x or 2.x? Your notes do not move over on their own.** 3.x starts with an empty list. Bring them across with **`File → Import Data from v2.x or Earlier…`** (Korean: `파일 → v2.x 이하 버전 데이터 가져오기…`).
 >
 > **Don't uninstall the old version or delete `%APPDATA%\SimpleToDoMemo` before importing.** That folder is where the import reads from. See [Moving over from 1.x / 2.x](#moving-over-from-1x--2x-electron) below.
 
@@ -43,7 +43,7 @@ Data lives in `%APPDATA%\SimpleToDoMemoWpf`.
 ### Moving over from 1.x / 2.x (Electron)
 
 1. Start 3.x.
-2. Choose `File → Import from Previous Version (Electron)…` and confirm.
+2. Choose `File → Import Data from v2.x or Earlier…` and confirm.
 
 This works with any earlier version, including the ones named DateMemo, and you don't need to run the old version first. 3.1.0 and later read the old version's storage (`%APPDATA%\SimpleToDoMemo`) directly. The import brings over your tasks, links, sort order and number-link address. It replaces whatever is in 3.x at that moment, and asks before doing so.
 

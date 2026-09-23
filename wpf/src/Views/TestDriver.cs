@@ -122,6 +122,15 @@ static class TestDriver
         {
             await Wait(400);
             log.Add($"before import: dates={app.Memos.Data.Count} links={app.Links.Sum(g => g.Links.Count)}");
+            foreach (var lang in new[] { "ko", "en" })
+            {
+                app.SetLang(lang);
+                w.MFile.IsSubmenuOpen = true;
+                await Wait(300);
+                if (Find<Popup>(w.MFile).FirstOrDefault()?.Child is FrameworkElement fm) Shot(fm, "i00-file-menu-" + lang);
+                w.MFile.IsSubmenuOpen = false;
+            }
+            app.SetLang("ko");
             app.ImportFromElectron(w, ask: false);
             await Wait(300);
             log.Add("memos: " + string.Join(" ; ", app.Memos.Data.OrderBy(p => p.Key).Select(p => p.Key + "=" + string.Join(",", p.Value.Select(i => $"{i.Text}[{i.State}{(i.Color != null ? "," + i.Color : "")}{(i.PinnedAt != null ? ",pin" : "")}]")))));

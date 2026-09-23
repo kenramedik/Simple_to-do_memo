@@ -135,7 +135,7 @@ public sealed class Strings
         MenuFile = "파일(_F)", MenuSettings = "설정(_S)", MenuHelp = "도움말(_H)",
         OpenLinks = "링크 모음(_L)", Exit = "종료(_X)", AlwaysOnTop = "항상 위에 표시(_T)",
         MinToTray = "최소화 시 트레이로(_M)", DeleteLock = "삭제 잠금(_D)", About = "정보(_A)",
-        ImportElectron = "이전 버전(Electron)에서 가져오기…",
+        ImportElectron = "v2.x 이하 버전 데이터 가져오기(_I)…",
         Open = "열기", CreatedBy = "제작자", AboutBody = "하루 단위로 메모를 남기고 완료 표시를 할 수 있습니다.",
         LinkSettings = "링크 설정(_K)…", LinkTitle = "링크 설정",
         LinkSub = "할 일에 (12345) 처럼 괄호 안에 다섯 자리 이상 숫자가 있으면 그 숫자에 이 주소로 링크를 답니다.",
@@ -176,9 +176,9 @@ public sealed class Strings
         DelGroup = "그룹 삭제", DelGroupTip = "그룹 삭제 · 링크는 '그룹 없음'으로 옮겨집니다", MoveTo = "다른 그룹으로 옮기기",
         Fold = "접기", Unfold = "펼치기", DragMoveTip = "드래그해서 옮기기",
         EditLinkTitle = "링크 수정", Name = "이름", Url = "주소",
-        ImportAsk = "이전 버전(Electron)의 메모와 링크를 찾았습니다.\n지금 가져올까요? 이 버전에 있는 메모와 링크는 가져온 내용으로 바뀝니다.",
-        ImportDone = "이전 버전의 메모와 링크를 가져왔습니다.",
-        ImportNone = "이전 버전의 메모와 링크를 찾지 못했습니다.\n이 PC에서 이전 버전(Electron)을 쓴 적이 없거나, 자료 폴더(%APPDATA%\\SimpleToDoMemo)가 지워진 것 같습니다.",
+        ImportAsk = "v2.x 이하 버전의 메모와 링크를 찾았습니다.\n지금 가져올까요? 이 버전에 있는 메모와 링크는 가져온 내용으로 바뀝니다.",
+        ImportDone = "v2.x 이하 버전의 메모와 링크를 가져왔습니다.",
+        ImportNone = "v2.x 이하 버전의 메모와 링크를 찾지 못했습니다.\n이 PC에서 v2.x 이하 버전을 쓴 적이 없거나, 자료 폴더(%APPDATA%\\SimpleToDoMemo)가 지워진 것 같습니다.",
     };
 
     public static readonly Strings En = new()
@@ -195,7 +195,7 @@ public sealed class Strings
         MenuFile = "_File", MenuSettings = "_Settings", MenuHelp = "_Help",
         OpenLinks = "_Links", Exit = "E_xit", AlwaysOnTop = "Always on _Top",
         MinToTray = "_Minimize to Tray", DeleteLock = "_Delete Lock", About = "_About",
-        ImportElectron = "Import from Previous Version (Electron)…",
+        ImportElectron = "_Import Data from v2.x or Earlier…",
         Open = "Open", CreatedBy = "Created by", AboutBody = "Keep a to-do list one day at a time.",
         LinkSettings = "Lin_k Settings…", LinkTitle = "Link Settings",
         LinkSub = "When a task has a number of five or more digits in parentheses, like (12345), that number becomes a link to this address.",
@@ -236,9 +236,9 @@ public sealed class Strings
         DelGroup = "Delete group", DelGroupTip = "Delete group · its links move to Ungrouped", MoveTo = "Move to group",
         Fold = "Collapse", Unfold = "Expand", DragMoveTip = "Drag to move",
         EditLinkTitle = "Edit link", Name = "Name", Url = "URL",
-        ImportAsk = "Found notes and links from the previous (Electron) version.\nImport them now? Notes and links in this version will be replaced.",
-        ImportDone = "Imported notes and links from the previous version.",
-        ImportNone = "No notes or links from the previous version were found.\nThe previous (Electron) version may never have been used on this PC, or its data folder (%APPDATA%\\SimpleToDoMemo) was removed.",
+        ImportAsk = "Found notes and links from version 2.x or earlier.\nImport them now? Notes and links in this version will be replaced.",
+        ImportDone = "Imported notes and links from version 2.x or earlier.",
+        ImportNone = "No notes or links from version 2.x or earlier were found.\nVersion 2.x or earlier may never have been used on this PC, or its data folder (%APPDATA%\\SimpleToDoMemo) was removed.",
     };
 }
 
