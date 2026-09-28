@@ -102,6 +102,20 @@ public sealed class Memos
         Save();
     }
 
+    // 다른 그룹 묶음으로 끌어 놓을 때 - 그룹을 바꾸고 순서도 옮긴다
+    public void MoveTo(string date, int from, int to, string? group)
+    {
+        if (!Data.TryGetValue(date, out var arr)) return;
+        var it = arr[from];
+        it.Group = group;
+        if (from != to && from + 1 != to)
+        {
+            arr.RemoveAt(from);
+            arr.Insert(to > from ? to - 1 : to, it);
+        }
+        Save();
+    }
+
     public List<(string Date, TodoItem Item)> Search(string q, bool newestFirst)
     {
         var outList = new List<(string, TodoItem)>();

@@ -65,6 +65,7 @@ public sealed class MemoGroup
 {
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("collapsed")] public bool Collapsed { get; set; }
 }
 
 public sealed class GroupsFile
@@ -98,7 +99,9 @@ public sealed class Settings
     // 등록일 정렬 - false 면 오래된 것이 위
     [JsonPropertyName("newestFirst")] public bool NewestFirst { get; set; }
     [JsonPropertyName("linksTarget")] public string LinksTarget { get; set; } = "inbox";
-    // 보고 있는 할 일 그룹 - null 이면 전체
+    // 새 할 일을 넣을 그룹 - null 이면 그룹 없음
     [JsonPropertyName("memoGroup")] public string? MemoGroup { get; set; }
+    // '그룹 없음' 묶음을 접었는지 - 다른 그룹은 groups.json 에 저장
+    [JsonPropertyName("looseCollapsed")] public bool LooseCollapsed { get; set; }
     [JsonPropertyName("migratedFromElectron")] public bool MigratedFromElectron { get; set; }
 }

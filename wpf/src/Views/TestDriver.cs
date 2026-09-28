@@ -85,7 +85,9 @@ static class TestDriver
         }
     }
 
-    static Border Card(Panel list, int i) => (Border)((Grid)list.Children[i]).Children[0];
+    // 할 일 카드 - 그룹 묶음 안에 들어 있을 수 있어 목록의 직계 자식으로 찾지 않는다
+    static List<Border> Cards(Panel list) => Find<Border>(list).Where(b => b.MinHeight == 46).ToList();
+    static Border Card(Panel list, int i) => Cards(list)[i];
 
     // 끌기: 행에서 누른 뒤 목표 지점(목록 좌표)으로 옮기고, 놓기 전에 한 장 찍는다
     static async Task Drag(Window w, ScrollViewer scroll, Panel list, Border card, Point to, string shot)
@@ -171,10 +173,10 @@ static class TestDriver
         await Wait(100);
 
         // 끌어서 순서 바꾸기 - 넘어온 항목 다음의 첫 자기 항목을 맨 아래로
-        int n = w.ListPanel.Children.Count;
+        int n = Cards(w.ListPanel).Count;
         log.Add("rows " + n);
         log.Add("order before: " + Order(app));
-        var last = (Grid)w.ListPanel.Children[n - 1];
+        var last = (Grid)Card(w.ListPanel, n - 1).Parent;
         var target = last.TranslatePoint(new Point(last.ActualWidth / 2, last.ActualHeight * .85), w.ListPanel);
         await Drag(w, w.ListScroll, w.ListPanel, Card(w.ListPanel, 1), target, "m06-dragging");
         log.Add("order after:  " + Order(app));
@@ -187,11 +189,11 @@ static class TestDriver
         log.Add("order added:  " + Order(app));
 
         // 체크 순환: 미확인 -> 완료 -> 드랍 -> 미확인
-        var cyc = Card(w.ListPanel, w.ListPanel.Children.Count - 1);
+        var cyc = Card(w.ListPanel, Cards(w.ListPanel).Count - 1);
         var states = new List<int>();
         for (int i = 0; i < 3; i++)
         {
-            ClickEl(Card(w.ListPanel, w.ListPanel.Children.Count - 1));
+            ClickEl(Card(w.ListPanel, Cards(w.ListPanel).Count - 1));
             await Wait(80);
             states.Add(app.Memos.Data["2026-09-23"][^1].State);
         }
@@ -300,18 +302,20 @@ static class TestDriver
         var src = PresentationSource.FromVisual((Visual)el)!;
         el.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, src, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
     }
-    static List<Button> Tabs(MainWindow w) => w.GroupBar.Children.OfType<Button>().ToList();
     static string Day(App app) => string.Join(" | ", app.Memos.Data[DateTime.Today.ToString("yyyy-MM-dd")]
         .Select(x => x.Text + (x.Group != null ? "@" + (app.Groups.Find(g => g.Id == x.Group)?.Name ?? "?" + x.Group) : "")));
+    // 묶음 머리 (높이 30)
+    static List<Border> Heads(MainWindow w) => Find<Border>(w.ListPanel).Where(b => b.Height == 30).ToList();
+    static Border CardOf(MainWindow w, string text) =>
+        Cards(w.ListPanel).First(c => Find<TextBlock>(c).Any(t => t.Inlines.OfType<System.Windows.Documents.Run>().Any(r => r.Text.StartsWith(text))));
+    static TextBox Editor(MainWindow w) => Find<TextBox>(w.ListPanel).First();
 
-    static async Task NewGroup(MainWindow w, string name)
+    static async Task NameIt(MainWindow w, string name, Key key = System.Windows.Input.Key.Enter)
     {
-        ClickBtn(Tabs(w).Last());
         await Wait(150);
-        var inp = Find<TextBox>(w.GroupBar).First();
-        inp.Text = name;
-        PressKey(inp, System.Windows.Input.Key.Enter);
-        await Wait(150);
+        Editor(w).Text = name;
+        PressKey(Editor(w), key);
+        await Wait(200);
     }
 
     static async Task Groups(App app)
@@ -320,14 +324,21 @@ static class TestDriver
         await Wait(500);
         Shot(w, "g01-no-groups");
 
-        ClickBtn(Tabs(w).Last());
-        await Wait(200);
-        Find<TextBox>(w.GroupBar).First().Text = "업무";
+        // 그룹이 없을 때는 예전처럼 순서만 바꾼다 - '회의 자료'를 '운동' 아래로, 다시 제자리로
+        var ex = CardOf(w, "운동");
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "회의 자료"), ex.TranslatePoint(new Point(ex.ActualWidth / 2, ex.ActualHeight * .85), w.ListPanel), "g00-bare-drag");
+        log.Add("bare drag: " + Day(app));
+        var mt = CardOf(w, "장보기");
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "회의 자료"), mt.TranslatePoint(new Point(mt.ActualWidth / 2, 6), w.ListPanel), "g00-bare-drag2");
+        log.Add("bare back: " + Day(app));
+
+        Call(w, "StartNewGroup", new object[] { null! });
+        await Wait(150);
+        Editor(w).Text = "업무";
         Shot(w, "g02-editor");
-        PressKey(Find<TextBox>(w.GroupBar).First(), System.Windows.Input.Key.Enter);
+        PressKey(Editor(w), System.Windows.Input.Key.Enter);
         await Wait(200);
-        log.Add($"after 업무: groups={string.Join(",", app.Groups.Select(g => g.Name))} sel={app.Settings.MemoGroup}");
-        Shot(w, "g03-empty-group");
+        log.Add($"after 업무: groups={string.Join(",", app.Groups.Select(g => g.Name))} target={app.Groups.Find(g => g.Id == app.Settings.MemoGroup)?.Name}");
 
         w.Input.Text = "분기 보고서 작성";
         Call(w, "AddItem");
@@ -336,88 +347,104 @@ static class TestDriver
         await Wait(150);
 
         // Esc 로 새 그룹 만들기를 그만두면 아무것도 생기지 않는다
-        ClickBtn(Tabs(w).Last());
-        await Wait(150);
-        Find<TextBox>(w.GroupBar).First().Text = "버릴 그룹";
-        PressKey(Find<TextBox>(w.GroupBar).First(), System.Windows.Input.Key.Escape);
-        await Wait(150);
+        Call(w, "StartNewGroup", new object[] { null! });
+        await NameIt(w, "버릴 그룹", System.Windows.Input.Key.Escape);
         log.Add($"after esc: groups={string.Join(",", app.Groups.Select(g => g.Name))}");
 
-        await NewGroup(w, "개인");
+        Call(w, "StartNewGroup", new object[] { null! });
+        await NameIt(w, "개인");
         w.Input.Text = "헬스장 등록";
         Call(w, "AddItem");
-        await Wait(150);
-        Shot(w, "g04-personal");
-        log.Add("day: " + Day(app));
-
-        ClickBtn(Tabs(w)[0]);   // 전체
         await Wait(200);
-        Shot(w, "g05-all");
-        log.Add($"all rows={w.ListPanel.Children.Count} sel={app.Settings.MemoGroup ?? "null"}");
+        w.ListScroll.ScrollToTop();
+        await Wait(100);
+        Shot(w, "g03-grouped");
+        log.Add("day: " + Day(app));
+        log.Add($"heads={Heads(w).Count} cards={Cards(w.ListPanel).Count}");
 
-        // 그룹 없는 할 일을 우클릭 메뉴로 업무에 넣는다
-        RightClick(Card(w.ListPanel, 1));
+        // 그룹 없는 할 일을 우클릭 메뉴로 업무에
+        RightClick(CardOf(w, "회의 자료"));
         await Wait(300);
         var menu = OpenMenu();
         if (menu != null)
         {
-            Shot(menu, "g06-item-menu");
+            Shot(menu, "g04-item-menu");
             var to = menu.Items.OfType<MenuItem>().First(m => (m.Header as string) == "업무");
             to.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             menu.IsOpen = false;
         }
         await Wait(200);
-        log.Add("moved: " + Day(app));
+        log.Add("menu move: " + Day(app));
 
-        // 업무 탭에서 끌어 순서 바꾸기 - 사이에 안 보이는 항목이 끼어 있다
-        ClickBtn(Tabs(w)[1]);
+        // 끝에 가까우면 자동 스크롤이 실제 마우스 위치를 읽어 흉내 낸 위치를 덮는다 - 창을 키워 둔다
+        w.Height = 1000;
         await Wait(200);
-        log.Add($"work rows={w.ListPanel.Children.Count}");
-        int n = w.ListPanel.Children.Count;
-        var lastRow = (Grid)w.ListPanel.Children[n - 1];
-        var target = lastRow.TranslatePoint(new Point(lastRow.ActualWidth / 2, lastRow.ActualHeight * .85), w.ListPanel);
-        log.Add("before drag: " + Day(app));
-        await Drag(w, w.ListScroll, w.ListPanel, Card(w.ListPanel, 0), target, "g07-dragging");
-        log.Add("after drag:  " + Day(app));
-        Shot(w, "g08-work");
+        // 끌어서 다른 그룹으로 - '운동'을 개인 묶음 머리 위에 놓는다
+        var personalHead = Heads(w).Last();
+        var p = personalHead.TranslatePoint(new Point(personalHead.ActualWidth / 2, personalHead.ActualHeight / 2), w.ListPanel);
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "운동"), p, "g05-drag-into");
+        log.Add("drag into: " + Day(app));
 
-        // 탭 우클릭 메뉴, 순서 바꾸기, 이름 바꾸기
-        RightClick(Tabs(w)[1]);
+        // 끌어서 다른 그룹의 행 사이로 - '코드 리뷰'를 업무의 '고객사 메일' 위에
+        var mail = CardOf(w, "고객사 메일");
+        p = mail.TranslatePoint(new Point(mail.ActualWidth / 2, 6), w.ListPanel);
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "코드 리뷰"), p, "g06-drag-between");
+        log.Add("drag between: " + Day(app));
+        w.ListScroll.ScrollToTop();
+        await Wait(100);
+        Shot(w, "g07-after-drag");
+
+        // 추가할 그룹 메뉴, 묶음 머리 메뉴
+        Call(w, "TargetMenu");
         await Wait(300);
         menu = OpenMenu();
-        if (menu != null) { Shot(menu, "g09-tab-menu"); menu.IsOpen = false; }
-        Call(w, "MoveGroup", 0, 1);
+        if (menu != null) { Shot(menu, "g08-target-menu"); menu.IsOpen = false; }
+        // 메뉴가 다 닫힐 때 입력칸으로 포커스를 돌린다 - 그 전에 다음 메뉴를 열면 그 포커스 이동에 곧바로 닫힌다
+        await Wait(600);
+        var workHead = Heads(w).First(h => Find<TextBlock>(h).Any(t => t.Text == "업무"));
+        Hover(workHead);
         await Wait(100);
-        log.Add($"moved group: {string.Join(",", app.Groups.Select(g => g.Name))}");
-        Call(w, "StartGroupEdit", app.Groups[0], Tabs(w)[1]);
-        await Wait(150);
-        var ren = Find<TextBox>(w.GroupBar).First();
-        ren.Text = "개인 생활과 건강 관리 관련 일들";
-        PressKey(ren, System.Windows.Input.Key.Enter);
-        await Wait(200);
-        Shot(w, "g10-renamed");
+        Shot(w, "g09-head-hover");
+        Unhover(workHead);
+        RightClick(workHead);
+        await Wait(300);
+        menu = OpenMenu();
+        log.Add("head menu open: " + (menu != null));
+        if (menu != null) { Shot(menu, "g10-head-menu"); menu.IsOpen = false; }
 
-        ClickBtn(w.MonthBtn);
+        // 접기, 순서 바꾸기, 이름 바꾸기
+        Call(w, "ToggleFold", app.Groups.First(g => g.Name == "업무"));
         await Wait(200);
-        Shot(w, "g11-calendar");
-        ClickBtn(w.CalClose);
+        Shot(w, "g11-folded");
+        Call(w, "MoveGroup", 0, 1);
+        await Wait(150);
+        log.Add($"moved group: {string.Join(",", app.Groups.Select(g => g.Name))} collapsed={string.Join(",", app.Groups.Select(g => g.Collapsed))}");
+        ClickEl(Heads(w).First(h => Find<TextBlock>(h).Any(t => t.Text == "업무")));   // 머리 누르면 다시 펼침
+        await Wait(200);
+        var secs = (System.Collections.IList)typeof(MainWindow).GetField("sections", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(w)!;
+        var personalSec = secs.Cast<object>().First(s => (s.GetType().GetField("G")!.GetValue(s) as SimpleToDoMemo.Core.MemoGroup)?.Name == "개인");
+        Call(w, "StartRename", personalSec, app.Groups.First(g => g.Name == "개인"));
+        await NameIt(w, "개인 생활과 건강 관리 관련 일들");
+        w.ListScroll.ScrollToTop();
+        await Wait(100);
+        Shot(w, "g12-renamed");
 
         w.Width = 360; w.Height = 640;
         await Wait(300);
-        Shot(w, "g12-narrow");
+        Shot(w, "g13-narrow");
         app.SetLang("en");
         await Wait(300);
-        Shot(w, "g13-en");
+        Shot(w, "g14-en");
         app.SetLang("ko");
         w.Width = 460; w.Height = 740;
 
-        // 그룹 삭제 - 할 일은 남고 그룹만 빠진다
+        // 그룹 삭제 - 할 일은 남고 그룹 없음으로
         var work = app.Groups.First(g => g.Name == "업무");
         Call(w, "DeleteGroup", work);
         await Wait(200);
-        log.Add($"after delete: groups={string.Join(",", app.Groups.Select(g => g.Name))} sel={app.Settings.MemoGroup ?? "null"}");
+        log.Add($"after delete: groups={string.Join(",", app.Groups.Select(g => g.Name))} target={app.Settings.MemoGroup ?? "null"}");
         log.Add("day: " + Day(app));
-        Shot(w, "g14-deleted");
+        Shot(w, "g15-deleted");
         log.Add("groups.json: " + File.ReadAllText(Path.Combine(SimpleToDoMemo.Core.Storage.Dir, "groups.json")).Replace("\r\n", " "));
     }
 }
