@@ -257,6 +257,7 @@ public partial class MainWindow : Window
         public string From = "";
         public bool Carried;
         public int Index;
+        public double Key;
         public Grid Host = null!;
         public Border Card = null!;
         public Border Box = null!;
@@ -456,16 +457,16 @@ public partial class MainWindow : Window
     {
         var T = L.Cur;
         var it = e.Item;
-        var r = new Row { Item = it, From = e.From, Carried = e.Carried, Index = e.Index };
+        var r = new Row { Item = it, From = e.From, Carried = e.Carried, Index = e.Index, Key = e.Key };
 
-        var grid = new Grid { Margin = new Thickness(e.Carried ? 12 : 8, 9, 8, 9), MinHeight = 26 };
+        var grid = new Grid { Margin = new Thickness(8, 9, 8, 9), MinHeight = 26 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        if (!e.Carried)
+        // 넘어온 항목도 끌어 옮길 수 있다 - 순서 값만 바뀌고 등록한 날짜는 그대로다
         {
             var grip = new Border { Child = Grip(), Background = Brushes.Transparent, Width = 14, Margin = new Thickness(0, 0, 3, 0),
                                     Opacity = 0, Cursor = Cursors.SizeAll, VerticalAlignment = VerticalAlignment.Stretch };
@@ -540,7 +541,7 @@ public partial class MainWindow : Window
         {
             if (r.Txt.Parent == null) return;   // 수정 중
             pressed = true;
-            if (!r.Carried) BeginDragCandidate(r, ev.GetPosition(ListPanel));
+            BeginDragCandidate(r, ev.GetPosition(ListPanel));
         };
         r.Card.MouseLeftButtonUp += (_, ev) =>
         {
@@ -814,10 +815,10 @@ public partial class MainWindow : Window
         inp.PreviewMouseLeftButtonDown += (_, e) => e.Handled = false;
     }
 
-    /* ─── 드래그 정렬 ─── 넘어온 항목은 원래 날짜의 순서를 따르므로 끌어 옮기지 않는다 */
+    /* ─── 드래그 정렬 ─── 넘어온 항목도 옮길 수 있다. 등록한 날짜는 그대로 두고 순서 값만 바꾼다. */
     sealed class DragState { public Row Row = null!; public Point Start; public bool Moved; }
     DragState? drag;
-    int? dropTo;
+    double? dropTo;
     bool justDragged;
     DispatcherTimer? autoScroll;
     bool hadCapture;
@@ -844,6 +845,8 @@ public partial class MainWindow : Window
             drag.Row.Host.Opacity = 0.35;
             Mouse.OverrideCursor = Cursors.SizeAll;
             hadCapture = ListScroll.CaptureMouse();
+            var dragged = drag.Row.Item;
+            dayKeys = memos.ItemsFor(cur, today, false).Where(x => x.Item != dragged).Select(x => x.Key).OrderBy(k => k).ToList();
             RevealLoose();
             ListPanel.UpdateLayout();
             autoScroll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
@@ -860,9 +863,24 @@ public partial class MainWindow : Window
         UpdateDrop(p.Y);
     }
 
-    /* 놓을 자리: 묶음 안의 행 위/아래(선), 또는 묶음 머리(그 그룹 끝에 넣기).
-       다른 묶음에 놓으면 그 그룹으로 옮겨진다. */
+    /* 놓을 자리: 묶음 안의 행 위/아래(선), 또는 묶음 머리(그 그룹 맨 끝에 넣기).
+       다른 묶음에 놓으면 그 그룹으로 옮겨진다. 자리는 순서 값(Memos.ItemsFor)으로 적는다 -
+       위아래 이웃 사이의 값을 주므로 넘어온 항목도 오늘 항목과 섞어 옮길 수 있다. */
     string? dropGroup;
+    // 그날 보이는 모든 항목의 순서 값 (끌고 있는 항목 빼고, 작은 것부터). 접힌 묶음 항목도 들어 있다.
+    List<double> dayKeys = new();
+
+    double After(double lo)
+    {
+        int i = dayKeys.FindIndex(k => k > lo);
+        return i < 0 ? lo + 0.5 : (lo + dayKeys[i]) / 2;
+    }
+
+    double Before(double hi)
+    {
+        int i = dayKeys.FindLastIndex(k => k < hi);
+        return i < 0 ? hi - 0.5 : (dayKeys[i] + hi) / 2;
+    }
 
     void UpdateDrop(double y)
     {
@@ -879,47 +897,34 @@ public partial class MainWindow : Window
         if (sec == null) return;
         var gid = sec.G?.Id;
         bool same = gid == GroupOf(drag.Row.Item)?.Id;
-        // 끼울 자리는 이웃 행의 data[cur] 위치로 정한다. 묶음마다 다른 그룹 항목이 사이사이 빠져 있어
-        // 화면 순번을 그대로 쓸 수 없다. 내림차순이면 화면 순서가 data[cur] 의 역순이라 위아래도 뒤집힌다.
-        int ToData(Row r, bool below) => r.Index + (below != settings.NewestFirst ? 1 : 0);
-        bool InPlace(int to) => same && (to == drag.Row.Index || to == drag.Row.Index + 1);
-        double Top(Row r) => r.Host.TranslatePoint(new Point(0, 0), ListPanel).Y;
-        void Set(int to) { dropTo = to; dropGroup = gid; }
+        void Set(double order) { dropTo = order; dropGroup = gid; }
 
-        var own = sec.Rows.Where(r => !r.Carried).ToList();
+        var list = sec.Rows;
         double headBottom = sec.Head == null ? double.NegativeInfinity
             : sec.Head.TranslatePoint(new Point(0, sec.Head.ActualHeight), ListPanel).Y;
-        if (own.Count == 0 || y < headBottom)
+        if (list.Count == 0 || y < headBottom)
         {
-            // 머리 위나 끌어 놓을 행이 없는 묶음 - 가장 최근 항목 자리(오름차순이면 묶음 맨 아래, 내림차순이면 맨 위)에 넣는다.
+            // 머리 위나 펼쳐진 행이 없는 묶음 - 그날 맨 끝 자리(오름차순이면 묶음 맨 아래, 내림차순이면 맨 위)에 넣는다.
             // 같은 그룹이면 할 일이 없다.
             if (same) return;
-            Set(memos.Data[cur].Count);
+            Set(dayKeys.Count > 0 ? dayKeys[^1] + 0.5 : Memos.Natural(cur, 0));
             MarkInto(sec, true);
             return;
         }
 
-        for (int i = 0; i < own.Count; i++)
-        {
-            double top = Top(own[i]), h = own[i].Host.ActualHeight;
-            if (y < top || y > top + h) continue;
-            bool below = y - top > h / 2;
-            int to = ToData(own[i], below);
-            if (InPlace(to)) return;
-            Set(to);
-            (below ? own[i].LineBelow : own[i].LineAbove).Visibility = Visibility.Visible;
-            return;
-        }
-        if (y < Top(own[0]))
-        {
-            int to = ToData(own[0], false);
-            if (!InPlace(to)) { Set(to); own[0].LineAbove.Visibility = Visibility.Visible; }
-        }
-        else
-        {
-            int to = ToData(own[^1], true);
-            if (!InPlace(to)) { Set(to); own[^1].LineBelow.Visibility = Visibility.Visible; }
-        }
+        // 화면에서 gap 번째 행 바로 위(= gap-1 번째 행 바로 아래)에 끼운다
+        double Top(Row r) => r.Host.TranslatePoint(new Point(0, 0), ListPanel).Y;
+        int gap = list.FindIndex(r => y < Top(r) + r.Host.ActualHeight / 2);
+        if (gap < 0) gap = list.Count;
+        Row? above = gap > 0 ? list[gap - 1] : null, below = gap < list.Count ? list[gap] : null;
+        if (same && (above == drag.Row || below == drag.Row)) return;
+        // 오름차순이면 위 행 뒤, 내림차순이면 화면이 뒤집혀 있으니 아래 행 뒤가 된다
+        double order = settings.NewestFirst
+            ? below != null ? After(below.Key) : Before(above!.Key)
+            : above != null ? After(above.Key) : Before(below!.Key);
+        Set(order);
+        if (below != null) below.LineAbove.Visibility = Visibility.Visible;
+        else above!.LineBelow.Visibility = Visibility.Visible;
     }
 
     static void MarkInto(Section sec, bool on)
@@ -964,7 +969,7 @@ public partial class MainWindow : Window
         if (d == null || !d.Moved) return;
         justDragged = true;
         Dispatcher.BeginInvoke(() => justDragged = false, DispatcherPriority.Input);
-        if (commit && dropTo is int to) memos.MoveTo(cur, d.Row.Index, to, dropGroup);
+        if (commit && dropTo is double to) memos.Place(d.Row.Item, to, dropGroup);
         dropTo = null;
         dropGroup = null;
         Render();

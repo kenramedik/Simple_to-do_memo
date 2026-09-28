@@ -104,6 +104,8 @@ static class TestDriver
         double Y(Point p) => list.TranslatePoint(p, scroll).Y;
         ((dynamic)w).DragTo(mid, Y(mid));
         log.Add("  after move1: drag=" + (F("drag") != null) + " captured=" + scroll.IsMouseCaptured);
+        // 가장자리 자동 스크롤은 실제 마우스 위치를 읽어 흉내 낸 위치를 덮는다 - 테스트에서는 멈춘다
+        (F("autoScroll") as System.Windows.Threading.DispatcherTimer)?.Stop();
         await Wait(60);
         ((dynamic)w).DragTo(to, Y(to));
         await Wait(150);
@@ -144,6 +146,11 @@ static class TestDriver
         if (Environment.GetEnvironmentVariable("SIMPLETODOMEMO_TEST_MODE") == "groups")
         {
             await Groups(app);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("SIMPLETODOMEMO_TEST_MODE") == "carry")
+        {
+            await Carry(app);
             return;
         }
         await Wait(500);
@@ -302,8 +309,9 @@ static class TestDriver
         var src = PresentationSource.FromVisual((Visual)el)!;
         el.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, src, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
     }
-    static string Day(App app) => string.Join(" | ", app.Memos.Data[DateTime.Today.ToString("yyyy-MM-dd")]
-        .Select(x => x.Text + (x.Group != null ? "@" + (app.Groups.Find(g => g.Id == x.Group)?.Name ?? "?" + x.Group) : "")));
+    // 오늘 할 일을 화면 순서대로 (넘어온 항목 포함, 그룹 이름 붙여서)
+    static string Day(App app) => string.Join(" | ", app.Memos.ItemsFor(DateTime.Today.ToString("yyyy-MM-dd"), DateTime.Today.ToString("yyyy-MM-dd"), false)
+        .Select(e => e.Item).Select(x => x.Text + (x.Group != null ? "@" + (app.Groups.Find(g => g.Id == x.Group)?.Name ?? "?" + x.Group) : "")));
     // 묶음 머리 (높이 30)
     static List<Border> Heads(MainWindow w) => Find<Border>(w.ListPanel).Where(b => b.Height == 30).ToList();
     static Border CardOf(MainWindow w, string text) =>
@@ -316,6 +324,63 @@ static class TestDriver
         Editor(w).Text = name;
         PressKey(Editor(w), key);
         await Wait(200);
+    }
+
+    /* ─── 넘어온 항목 옮기기 ─── 9/24·9/25 에 남은 할 일이 오늘로 넘어와 있는 자료로 시작한다 */
+    static string Shown(App app, string day, bool newestFirst = false) => string.Join(" | ",
+        app.Memos.ItemsFor(day, DateTime.Today.ToString("yyyy-MM-dd"), newestFirst)
+            .Select(e => (e.Carried ? "*" : "") + e.Item.Text.Split(' ')[0] + (e.Item.Group != null ? "@" + app.Groups.Find(g => g.Id == e.Item.Group)?.Name : "")));
+
+    static Point Below(MainWindow w, string text) { var c = CardOf(w, text); return c.TranslatePoint(new Point(c.ActualWidth / 2, c.ActualHeight * .85), w.ListPanel); }
+    static Point Above(MainWindow w, string text) { var c = CardOf(w, text); return c.TranslatePoint(new Point(c.ActualWidth / 2, 6), w.ListPanel); }
+
+    static async Task Carry(App app)
+    {
+        var w = app.MainWin;
+        w.Height = 1000;
+        await Wait(500);
+        var today = DateTime.Today.ToString("yyyy-MM-dd");
+        var next = SimpleToDoMemo.Core.Memos.AddBizDays(today, 1);
+        log.Add("start:        " + Shown(app, today));
+        Shot(w, "c01-start");
+
+        // 넘어온 항목을 오늘 항목 사이로
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "지난주"), Below(w, "코드"), "c02-drag-carried");
+        log.Add("carried down: " + Shown(app, today));
+        // 오늘 항목을 넘어온 항목 위로
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "운동"), Above(w, "목요일"), "c03-drag-own-up");
+        log.Add("own up:       " + Shown(app, today));
+        log.Add("next day:     " + Shown(app, next));
+        log.Add("dates kept:   " + string.Join(", ", app.Memos.Data.OrderBy(p => p.Key).Select(p => p.Key + "=" + string.Join("/", p.Value.Select(i => i.Text.Split(' ')[0])))));
+        Shot(w, "c04-after");
+
+        // 넘어온 항목을 그룹으로 - 머리 위에 놓기, 그룹 안 행 사이에 놓기
+        Call(w, "StartNewGroup", new object[] { null! });
+        await NameIt(w, "업무");
+        w.Input.Text = "분기 보고서 작성";
+        Call(w, "AddItem");
+        w.Input.Text = "고객사 메일 회신";
+        Call(w, "AddItem");
+        await Wait(200);
+        var head = Heads(w).First(h => Find<TextBlock>(h).Any(t => t.Text == "업무"));
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "목요일"), head.TranslatePoint(new Point(head.ActualWidth / 2, 15), w.ListPanel), "c05-carried-into-group");
+        log.Add("into group:   " + Shown(app, today));
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "지난주"), Above(w, "고객사"), "c06-carried-between");
+        log.Add("between:      " + Shown(app, today));
+        log.Add("next day:     " + Shown(app, next));
+        Shot(w, "c07-grouped");
+
+        // 내림차순에서 옮기기 - 화면이 뒤집혀 있어도 놓은 자리에 들어가야 한다
+        app.Settings.NewestFirst = true;
+        w.Render();
+        await Wait(200);
+        log.Add("desc before:  " + Shown(app, today, true));
+        await Drag(w, w.ListScroll, w.ListPanel, CardOf(w, "회의"), Below(w, "운동"), "c08-desc-drag");
+        log.Add("desc after:   " + Shown(app, today, true));
+        Shot(w, "c09-desc");
+        app.Settings.NewestFirst = false;
+        w.Render();
+        log.Add("memos.json has order: " + File.ReadAllText(Path.Combine(SimpleToDoMemo.Core.Storage.Dir, "memos.json")).Contains("\"order\""));
     }
 
     static async Task Groups(App app)

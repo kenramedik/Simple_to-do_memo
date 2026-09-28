@@ -5,7 +5,8 @@ using System.Linq;
 
 namespace SimpleToDoMemo.Core;
 
-public sealed record Entry(TodoItem Item, string From, bool Carried, int Index);
+// Index 는 등록한 날짜(From) 목록 안의 위치, Key 는 화면 순서 (작을수록 위, 내림차순이면 뒤집는다)
+public sealed record Entry(TodoItem Item, string From, bool Carried, int Index, double Key);
 
 /* 날짜별 메모와 '넘어오는 항목' 규칙. Electron 판 index.html 의 itemsFor 와 같은 규칙이다.
    - 미확인 항목은 등록일 다음 평일부터 매 평일에 계속 나타난다.
@@ -37,29 +38,45 @@ public sealed class Memos
         return Key(d);
     }
 
+    /* 화면 순서. 끌어 옮긴 적 없는 항목은 (등록일, 목록 위치) 차례 - 넘어온 항목이 먼저, 그날 항목이 뒤에 온다.
+       끌어 옮기면 그 항목에 order 를 적어 두고 그 값으로 자리를 잡는다. 넘어온 항목도 같은 값을 쓰므로
+       어느 날짜에서 보든 다른 항목과의 앞뒤가 같다. 날짜마다 1000 칸을 두어 날짜 차례를 넘지 않는다. */
+    static readonly DateTime Epoch = new(2000, 1, 1);
+    public static double Natural(string date, int index) => (Parse(date) - Epoch).Days * 1000.0 + index;
+    public static double KeyOf(TodoItem it, string date, int index) => it.Order ?? Natural(date, index);
+
     public List<Entry> ItemsFor(string k, string today, bool newestFirst)
     {
-        var own = Data.TryGetValue(k, out var list)
-            ? list.Select((it, i) => new Entry(it, k, false, i)).ToList()
+        var all = Data.TryGetValue(k, out var list)
+            ? list.Select((it, i) => new Entry(it, k, false, i, KeyOf(it, k, i))).ToList()
             : new List<Entry>();
-        List<Entry> Order(List<Entry> arr) { if (newestFirst) arr.Reverse(); return arr; }
 
-        if (IsWeekend(Parse(k))) return Order(own);
-        if (string.CompareOrdinal(k, AddBizDays(today, LookaheadBizDays)) > 0) return Order(own);
-
-        var carried = new List<Entry>();
-        foreach (var (date, items) in Data.OrderBy(p => p.Key, StringComparer.Ordinal))
+        if (!IsWeekend(Parse(k)) && string.CompareOrdinal(k, AddBizDays(today, LookaheadBizDays)) <= 0)
         {
-            if (string.CompareOrdinal(date, k) >= 0) continue;
-            foreach (var it in items)
+            foreach (var (date, items) in Data)
             {
-                bool live = it.State == ItemState.Open
-                    || (it.SettledOn != null && string.CompareOrdinal(k, it.SettledOn) <= 0);
-                if (live) carried.Add(new Entry(it, date, true, -1));
+                if (string.CompareOrdinal(date, k) >= 0) continue;
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var it = items[i];
+                    bool live = it.State == ItemState.Open
+                        || (it.SettledOn != null && string.CompareOrdinal(k, it.SettledOn) <= 0);
+                    if (live) all.Add(new Entry(it, date, true, i, KeyOf(it, date, i)));
+                }
             }
         }
-        carried.AddRange(own);
-        return Order(carried);
+        // 값이 같으면 등록 차례로 - 끌어 옮기지 않은 항목끼리는 예전 순서 그대로다
+        var sorted = all.OrderBy(e => e.Key).ThenBy(e => e.From, StringComparer.Ordinal).ThenBy(e => e.Index).ToList();
+        if (newestFirst) sorted.Reverse();
+        return sorted;
+    }
+
+    // 끌어 놓은 자리의 순서 값과 그룹을 적는다
+    public void Place(TodoItem it, double order, string? group)
+    {
+        it.Order = order;
+        it.Group = group;
+        Save();
     }
 
     // 미확인 -> 완료 -> 드랍 -> 미확인. 어느 날짜에서 처리했는지 남겨야 그날 목록에서 사라지지 않는다.
@@ -90,29 +107,6 @@ public sealed class Memos
         if (!Data.TryGetValue(date, out var list)) return;
         list.Remove(it);
         if (list.Count == 0) Data.Remove(date);
-        Save();
-    }
-
-    public void Move(string date, int from, int to)
-    {
-        if (!Data.TryGetValue(date, out var arr) || from == to || from + 1 == to) return;
-        var it = arr[from];
-        arr.RemoveAt(from);
-        arr.Insert(to > from ? to - 1 : to, it);
-        Save();
-    }
-
-    // 다른 그룹 묶음으로 끌어 놓을 때 - 그룹을 바꾸고 순서도 옮긴다
-    public void MoveTo(string date, int from, int to, string? group)
-    {
-        if (!Data.TryGetValue(date, out var arr)) return;
-        var it = arr[from];
-        it.Group = group;
-        if (from != to && from + 1 != to)
-        {
-            arr.RemoveAt(from);
-            arr.Insert(to > from ? to - 1 : to, it);
-        }
         Save();
     }
 

@@ -34,6 +34,11 @@ public sealed class TodoItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Group { get; set; }
 
+    // 끌어 옮긴 자리 (Memos.ItemsFor 참고). 없으면 등록 차례대로.
+    [JsonPropertyName("order")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Order { get; set; }
+
     // 아주 예전 자료는 done 불리언을 썼다 - 읽을 때만 쓰고 저장하지 않는다
     [JsonPropertyName("done")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
