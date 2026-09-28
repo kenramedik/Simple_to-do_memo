@@ -20,6 +20,7 @@ public static class Storage
     static string MemosFile => Path.Combine(Dir, "memos.json");
     static string LinksFile => Path.Combine(Dir, "links.json");
     static string SettingsFile => Path.Combine(Dir, "settings.json");
+    static string GroupsFile => Path.Combine(Dir, "groups.json");
 
     public static readonly JsonSerializerOptions Json = new()
     {
@@ -56,6 +57,14 @@ public static class Storage
 
     public static List<LinkGroup> LoadLinks() => NormalizeLinks(Read<LinksFile>(LinksFile));
     public static void SaveLinks(List<LinkGroup> groups) => Write(LinksFile, new LinksFile { Groups = groups });
+
+    public static List<MemoGroup> LoadGroups()
+    {
+        var groups = Read<GroupsFile>(GroupsFile)?.Groups ?? new List<MemoGroup>();
+        groups.RemoveAll(g => g == null || string.IsNullOrEmpty(g.Id));
+        return groups;
+    }
+    public static void SaveGroups(List<MemoGroup> groups) => Write(GroupsFile, new GroupsFile { Groups = groups });
 
     public static Settings LoadSettings() => Read<Settings>(SettingsFile) ?? new Settings();
     public static void SaveSettings(Settings s) => Write(SettingsFile, s);

@@ -22,6 +22,9 @@ public partial class MainWindow : Window
     readonly App app;
     Memos memos => app.Memos;
     Settings settings => app.Settings;
+    List<MemoGroup> groups => app.Groups;
+    // 보고 있는 그룹 - null 이면 전체
+    string? curGroup => settings.MemoGroup;
 
     string today = Memos.Key(DateTime.Today);
     string cur = Memos.Key(DateTime.Today);
@@ -159,13 +162,14 @@ public partial class MainWindow : Window
         Tip(SearchClose, T.Close);
         Tip(AddBtn, T.AddTip);
         SearchInput.Tag = T.SearchPlaceholder;
-        Input.Tag = T.AddPlaceholder;
+        Input.Tag = CurGroupObj() is MemoGroup cg ? T.AddToGroup(cg.Name) : T.AddPlaceholder;
         todayBtn.Content = T.Today;
         // 방향에 따라 아이콘도 같이 바뀐다
         sortBtn.Content = Icon(settings.NewestFirst ? Ico.SortDesc : Ico.SortAsc, 15, 2.1);
         Tip(sortBtn, settings.NewestFirst ? T.SortDesc : T.SortAsc);
 
         RenderHeader();
+        RenderGroups();
         RenderPinned();
         RenderList();
         if (Calendar.Visibility == Visibility.Visible) RenderCal();
@@ -197,7 +201,7 @@ public partial class MainWindow : Window
         Footer.Background = isToday ? Brushes.Transparent : B("Bg");
         TodayWash.Visibility = isToday ? Visibility.Visible : Visibility.Collapsed;
 
-        var arr = memos.ItemsFor(cur, today, settings.NewestFirst);
+        var arr = Visible(cur, settings.NewestFirst);
         int settled = arr.Count(e => e.Item.State != ItemState.Open);
         Progress.Visibility = arr.Count > 0 ? Visibility.Visible : Visibility.Hidden;
         ProgText.Text = arr.Count > 0 ? $"{settled}/{arr.Count}" : "";
@@ -270,10 +274,12 @@ public partial class MainWindow : Window
 
         if (searchOpen) { RenderSearch(); return; }
 
-        var arr = memos.ItemsFor(cur, today, settings.NewestFirst);
+        var arr = Visible(cur, settings.NewestFirst);
         if (arr.Count == 0)
         {
-            EmptyHost.Content = Empty(Ico.Calendar, T.EmptyTitle, T.EmptySub);
+            EmptyHost.Content = CurGroupObj() is MemoGroup g
+                ? Empty(Ico.Calendar, T.EmptyGroupTitle(g.Name), T.EmptySub)
+                : Empty(Ico.Calendar, T.EmptyTitle, T.EmptySub);
             return;
         }
         foreach (var e in arr)
@@ -295,6 +301,7 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -321,10 +328,17 @@ public partial class MainWindow : Window
         grid.Children.Add(r.Txt);
         TipIfTrimmed(r.Txt, it.Text);
 
+        // 전체를 볼 때만 어느 그룹 할 일인지 적는다
+        if (curGroup == null && GroupOf(it) is MemoGroup g)
+        {
+            var tag = GroupTag(g.Name);
+            Grid.SetColumn(tag, 3);
+            grid.Children.Add(tag);
+        }
         if (e.Carried)
         {
             var chip = CarryChip(e.From);
-            Grid.SetColumn(chip, 3);
+            Grid.SetColumn(chip, 4);
             grid.Children.Add(chip);
         }
         if (it.PinnedAt != null)
@@ -333,7 +347,7 @@ public partial class MainWindow : Window
                                    Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center };
             TextElement.SetForeground(pin, B("Accent"));
             Tip(pin, T.Unpin);
-            Grid.SetColumn(pin, 4);
+            Grid.SetColumn(pin, 5);
             grid.Children.Add(pin);
         }
 
@@ -551,6 +565,26 @@ public partial class MainWindow : Window
         }));
         menu.Items.Add(Item(it.Color != null && Ui.Colors.ContainsKey(it.Color) ? T.ColorIs(T.ColorName(it.Color)) : T.SetColor,
             () => OpenColorPop(at, it)));
+        if (groups.Count > 0)
+        {
+            // 지금 그룹은 강조해 두고, 나머지를 눌러 옮긴다
+            menu.Items.Add(new Separator());
+            menu.Items.Add(Heading(T.GroupHeading));
+            var mine = GroupOf(it)?.Id;
+            foreach (var g in groups.Prepend(null))
+            {
+                var id = g?.Id;
+                var mi = Item((g == null ? T.Ungrouped : g.Name).Replace("_", "__"), () =>
+                {
+                    if (id == mine) return;
+                    it.Group = id;
+                    memos.Save();
+                    Render();
+                }, id == mine ? "on" : null);
+                mi.Padding = new Thickness(20, 0, 12, 0);
+                menu.Items.Add(mi);
+            }
+        }
         if (!settings.DeleteLock)
         {
             menu.Items.Add(new Separator());
@@ -683,8 +717,9 @@ public partial class MainWindow : Window
         if (drag == null) return;
         var own = rows.Where(r => !r.Carried).ToList();
         if (own.Count == 0) return;
-        // 내림차순이면 화면 순서가 data[cur] 의 역순이다. 끼워 넣을 자리도 뒤집어야 한다.
-        int ToData(int v) => settings.NewestFirst ? own.Count - v : v;
+        // 끼울 자리는 이웃 행의 data[cur] 위치로 정한다. 그룹으로 걸러 보면 사이에 안 보이는 항목이 있어
+        // 화면 순번을 그대로 쓸 수 없다. 내림차순이면 화면 순서가 data[cur] 의 역순이라 위아래도 뒤집힌다.
+        int ToData(Row r, bool below) => r.Index + (below != settings.NewestFirst ? 1 : 0);
         bool InPlace(int to) => to == drag.Row.Index || to == drag.Row.Index + 1;
         double Top(Row r) => r.Host.TranslatePoint(new Point(0, 0), ListPanel).Y;
 
@@ -693,7 +728,7 @@ public partial class MainWindow : Window
             double top = Top(own[i]), h = own[i].Host.ActualHeight;
             if (y < top || y > top + h) continue;
             bool below = y - top > h / 2;
-            int to = ToData(i + (below ? 1 : 0));
+            int to = ToData(own[i], below);
             if (InPlace(to)) return;
             dropTo = to;
             (below ? own[i].LineBelow : own[i].LineAbove).Visibility = Visibility.Visible;
@@ -701,12 +736,12 @@ public partial class MainWindow : Window
         }
         if (y < Top(own[0]))
         {
-            int to = ToData(0);
+            int to = ToData(own[0], false);
             if (!InPlace(to)) { dropTo = to; own[0].LineAbove.Visibility = Visibility.Visible; }
         }
         else if (y > Top(own[^1]) + own[^1].Host.ActualHeight)
         {
-            int to = ToData(own.Count);
+            int to = ToData(own[^1], true);
             if (!InPlace(to)) { dropTo = to; own[^1].LineBelow.Visibility = Visibility.Visible; }
         }
     }
@@ -782,6 +817,7 @@ public partial class MainWindow : Window
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var box = MakeBox(it, 20, 7);
             box.Margin = new Thickness(0, 0, 11, 0);
             box.Cursor = Cursors.Hand;
@@ -790,9 +826,15 @@ public partial class MainWindow : Window
             FillText(txt, it, q);
             Grid.SetColumn(txt, 1);
             grid.Children.Add(txt);
+            if (GroupOf(it) is MemoGroup g)
+            {
+                var tag = GroupTag(g.Name);
+                Grid.SetColumn(tag, 2);
+                grid.Children.Add(tag);
+            }
             var date2 = new TextBlock { Text = T.Md(d.Month, d.Day), FontSize = 11, FontWeight = FontWeights.SemiBold,
                                         Foreground = B("Text3"), Margin = new Thickness(11, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(date2, 2);
+            Grid.SetColumn(date2, 3);
             grid.Children.Add(date2);
 
             var inner = new Grid();
@@ -813,6 +855,204 @@ public partial class MainWindow : Window
             ListPanel.Children.Add(card);
         }
     }
+
+    /* ─── 할 일 그룹 ───
+       탭으로 그룹을 고르면 목록·진행률·달력 개수가 그 그룹 것만 보이고, 새 할 일도 그 그룹에 들어간다.
+       '전체'는 모든 할 일을 보여주고 그룹 없이 추가한다. 고정 항목과 검색은 그룹과 상관없이 전부 본다. */
+    MemoGroup? GroupOf(TodoItem it) => it.Group == null ? null : groups.Find(g => g.Id == it.Group);
+    MemoGroup? CurGroupObj() => curGroup == null ? null : groups.Find(g => g.Id == curGroup);
+
+    List<Entry> Visible(string k, bool newestFirst)
+    {
+        var arr = memos.ItemsFor(k, today, newestFirst);
+        return CurGroupObj() is MemoGroup g ? arr.Where(e => e.Item.Group == g.Id).ToList() : arr;
+    }
+
+    void SelectGroup(string? id)
+    {
+        if (settings.MemoGroup == id) return;
+        settings.MemoGroup = id;
+        app.SaveSettings();
+        Render();
+    }
+
+    void RenderGroups()
+    {
+        var T = L.Cur;
+        GroupBar.Children.Clear();
+        GroupBar.Visibility = searchOpen ? Visibility.Collapsed : Visibility.Visible;
+        // 탭 옆 숫자는 이 날 남은(미확인) 할 일 수
+        var day = memos.ItemsFor(cur, today, false).Where(e => e.Item.State == ItemState.Open).ToList();
+        var sel = CurGroupObj();
+        if (groups.Count > 0)
+        {
+            GroupBar.Children.Add(GroupTab(null, T.AllGroups, day.Count, sel == null));
+            foreach (var g in groups)
+                GroupBar.Children.Add(GroupTab(g, g.Name, day.Count(e => e.Item.Group == g.Id), sel == g));
+        }
+
+        // 그룹이 없을 때는 글자까지 보여 무엇을 하는 버튼인지 알 수 있게 하고, 있으면 + 만 남긴다
+        var add = new Button { Style = S("BaseButton"), Height = 26, Margin = new Thickness(0, 0, 6, 6), Foreground = B("Text3") };
+        SetRadius(add, new CornerRadius(13));
+        if (groups.Count == 0)
+        {
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            sp.Children.Add(Icon(Ico.Plus, 12, 2.4));
+            sp.Children.Add(new TextBlock { Text = T.NewGroup, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+            add.Content = sp;
+            add.Padding = new Thickness(8, 0, 10, 0);
+            add.Margin = new Thickness(-8, 0, 6, 6);   // 글자 줄을 날짜 제목 왼쪽 끝에 맞춘다
+            add.FontSize = 12;
+            add.FontWeight = FontWeights.SemiBold;
+        }
+        else
+        {
+            add.Content = Icon(Ico.Plus, 13, 2.4);
+            add.Width = 26;
+            Tip(add, T.NewGroup);
+        }
+        add.MouseEnter += (_, _) => { add.Background = B("Hover"); add.Foreground = B("Text"); };
+        add.MouseLeave += (_, _) => { add.ClearValue(BackgroundProperty); add.Foreground = B("Text3"); };
+        add.Click += (_, _) => StartGroupEdit(null, add);
+        GroupBar.Children.Add(add);
+    }
+
+    Button GroupTab(MemoGroup? g, string label, int open, bool on)
+    {
+        var T = L.Cur;
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(new TextBlock { Text = label, MaxWidth = 150, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+        TextBlock? cnt = null;
+        if (open > 0)
+        {
+            cnt = new TextBlock { Text = open.ToString(), FontSize = 11, FontWeight = FontWeights.Bold, Margin = new Thickness(5, 0, 0, 0),
+                                  VerticalAlignment = VerticalAlignment.Center };
+            sp.Children.Add(cnt);
+        }
+        var b = new Button { Style = S("BaseButton"), Content = sp, Height = 26, Padding = new Thickness(11, 0, 11, 0), FontSize = 12,
+                             FontWeight = FontWeights.SemiBold, BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 6, 6) };
+        SetRadius(b, new CornerRadius(13));
+        void Paint(bool hover)
+        {
+            if (on)
+            {
+                b.Background = B("Accent"); b.BorderBrush = B("Accent"); b.Foreground = Brushes.White;
+                if (cnt != null) cnt.Foreground = new SolidColorBrush(Color.FromArgb(0xC8, 255, 255, 255));
+            }
+            else
+            {
+                b.Background = B("Surface");
+                b.BorderBrush = hover ? B("BorderStrong") : B("Border");
+                b.Foreground = hover ? B("Text") : B("Text2");
+                if (cnt != null) cnt.Foreground = B("Accent");
+            }
+        }
+        Paint(false);
+        b.MouseEnter += (_, _) => Paint(true);
+        b.MouseLeave += (_, _) => Paint(false);
+        b.Click += (_, _) => SelectGroup(g?.Id);
+        if (g != null)
+        {
+            // 이름이 잘렸으면 툴팁에 전체 이름도 적는다
+            var probe = new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold, FontFamily = FontFamily };
+            probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Tip(b, probe.DesiredSize.Width > 150 ? label + "\n" + T.GroupChipTip : T.GroupChipTip);
+            // 첫 번째 클릭에서 탭이 다시 그려지므로 두 번째 누름은 새 탭이 받는다 - 누른 횟수로 알아본다
+            b.PreviewMouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) { e.Handled = true; StartGroupEdit(g, b); } };
+            b.MouseRightButtonUp += (_, e) => { e.Handled = true; GroupMenu(g, b); };
+        }
+        return b;
+    }
+
+    void GroupMenu(MemoGroup g, Button tab)
+    {
+        var T = L.Cur;
+        int i = groups.IndexOf(g);
+        var menu = new ContextMenu();
+        menu.Items.Add(Item(T.Rename, () => StartGroupEdit(g, tab)));
+        menu.Items.Add(Item(T.MoveLeft, () => MoveGroup(i, -1), enabled: i > 0));
+        menu.Items.Add(Item(T.MoveRight, () => MoveGroup(i, 1), enabled: i < groups.Count - 1));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item(T.DelMemoGroup, () => DeleteGroup(g), "danger"));
+        menu.PlacementTarget = tab;
+        menu.Closed += (_, _) => FocusInput();
+        menu.IsOpen = true;
+    }
+
+    void MoveGroup(int i, int dir)
+    {
+        int j = i + dir;
+        if (j < 0 || j >= groups.Count) return;
+        (groups[i], groups[j]) = (groups[j], groups[i]);
+        app.SaveGroups();
+        Render();
+    }
+
+    // 그룹만 지우고 할 일은 그룹 없음으로 남긴다 - 사라지는 것이 없으니 따로 묻지 않는다
+    void DeleteGroup(MemoGroup g)
+    {
+        groups.Remove(g);
+        memos.Ungroup(g.Id);
+        app.SaveGroups();
+        if (settings.MemoGroup == g.Id) { settings.MemoGroup = null; app.SaveSettings(); }
+        Render();
+    }
+
+    // 탭(또는 + 버튼) 자리에 이름 칸을 띄운다. g 가 null 이면 새 그룹을 만든다.
+    void StartGroupEdit(MemoGroup? g, FrameworkElement at)
+    {
+        int pos = GroupBar.Children.IndexOf(at);
+        if (pos < 0) return;
+        var inp = new TextBox { Style = S("BareInput"), Text = g?.Name ?? "", Tag = L.Cur.GroupNamePh, FontSize = 12,
+                                FontWeight = FontWeights.SemiBold, Padding = new Thickness(0) };
+        var pill = new Border { Height = 26, Width = Math.Max(130, at.ActualWidth), CornerRadius = new CornerRadius(13), BorderThickness = new Thickness(1),
+                                BorderBrush = B("Accent"), Background = B("Surface"), Padding = new Thickness(11, 0, 11, 0), Child = inp };
+        // 아래 입력칸처럼 옅은 고리를 두른다. 고리 두께만큼 바깥 여백을 줄여 탭 줄이 흔들리지 않게 한다.
+        var ring = new Border { BorderThickness = new Thickness(3), BorderBrush = B("AccentRing"), CornerRadius = new CornerRadius(16),
+                                Margin = new Thickness(-3, -3, 3, 3), Child = pill };
+        GroupBar.Children.RemoveAt(pos);
+        GroupBar.Children.Insert(pos, ring);
+        inp.Focus();
+        inp.SelectAll();
+
+        bool closed = false;
+        void Close(bool commit)
+        {
+            if (closed) return;
+            closed = true;
+            var v = inp.Text.Trim();
+            if (commit && v.Length > 0)
+            {
+                if (g == null)
+                {
+                    // 새 그룹은 곧바로 그 그룹을 보여준다 - 이어서 입력하는 할 일이 그 그룹에 들어간다
+                    var ng = new MemoGroup { Id = Storage.NewId(), Name = v };
+                    groups.Add(ng);
+                    settings.MemoGroup = ng.Id;
+                    app.SaveSettings();
+                }
+                else g.Name = v;
+                app.SaveGroups();
+            }
+            Render();
+            FocusInput();
+        }
+        inp.LostKeyboardFocus += (_, _) => Close(true);
+        inp.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter) { e.Handled = true; Close(true); }
+            else if (e.Key == Key.Escape) { e.Handled = true; Close(false); }
+        };
+    }
+
+    // 전체를 볼 때 할 일 옆에 붙는 그룹 이름
+    static Border GroupTag(string name) => new()
+    {
+        Child = new TextBlock { Text = name, FontSize = 10.5, FontWeight = FontWeights.SemiBold, Foreground = B("Text2"),
+                                MaxWidth = 90, TextTrimming = TextTrimming.CharacterEllipsis },
+        Padding = new Thickness(6, 1.5, 6, 2), Margin = new Thickness(8, 0, 0, 0), CornerRadius = new CornerRadius(5),
+        Background = B("Hover"), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
+    };
 
     /* ─── 고정 항목 ─── */
     void RenderPinned()
@@ -920,7 +1160,7 @@ public partial class MainWindow : Window
         for (int d = 1; d <= last; d++)
         {
             var k = Memos.Key(new DateTime(calMonth.Year, calMonth.Month, d));
-            var arr = memos.ItemsFor(k, today, false);
+            var arr = Visible(k, false);
             int col = (start + d - 1) % 7;
             var holiday = Holidays.Name(k, T.English);
             bool isSel = k == cur, isToday = k == today;
@@ -986,7 +1226,7 @@ public partial class MainWindow : Window
     {
         var v = Input.Text.Trim();
         if (v.Length == 0) return;
-        memos.Add(cur, v);
+        memos.Add(cur, v, CurGroupObj()?.Id);
         Input.Text = "";
         Render();
         // 새 항목이 들어간 쪽으로 스크롤 - 내림차순이면 맨 위

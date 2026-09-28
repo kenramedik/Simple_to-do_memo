@@ -70,10 +70,18 @@ public sealed class Memos
         Save();
     }
 
-    public void Add(string date, string text)
+    public void Add(string date, string text, string? group = null)
     {
         if (!Data.TryGetValue(date, out var list)) Data[date] = list = new List<TodoItem>();
-        list.Add(new TodoItem { Text = text, State = ItemState.Open });
+        list.Add(new TodoItem { Text = text, State = ItemState.Open, Group = group });
+        Save();
+    }
+
+    // 지운 그룹의 할 일은 그룹 없음으로 돌린다 - 할 일 자체는 남는다
+    public void Ungroup(string groupId)
+    {
+        foreach (var it in Data.Values.SelectMany(l => l))
+            if (it.Group == groupId) it.Group = null;
         Save();
     }
 

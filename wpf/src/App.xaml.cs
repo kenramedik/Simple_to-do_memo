@@ -25,6 +25,7 @@ public partial class App : Application
     public Settings Settings { get; private set; } = new();
     public Memos Memos { get; private set; } = null!;
     public List<LinkGroup> Links { get; private set; } = null!;
+    public List<MemoGroup> Groups { get; private set; } = null!;
     public MainWindow MainWin { get; private set; } = null!;
     LinksWindow? linksWin;
 
@@ -56,6 +57,8 @@ public partial class App : Application
         Settings = Storage.LoadSettings();
         Memos = new Memos(Storage.LoadMemos());
         Links = Storage.LoadLinks();
+        Groups = Storage.LoadGroups();
+        if (Settings.MemoGroup != null && !Groups.Exists(g => g.Id == Settings.MemoGroup)) Settings.MemoGroup = null;
 
         if (Settings.Lang is not ("ko" or "en"))
         {
@@ -76,6 +79,7 @@ public partial class App : Application
 
     public void SaveSettings() => Storage.SaveSettings(Settings);
     public void SaveLinks() => Storage.SaveLinks(Links);
+    public void SaveGroups() => Storage.SaveGroups(Groups);
 
     // 창을 닫아 위치를 저장하게 한 뒤 끝낸다. 메인 창이 닫히면 Closed 에서 Shutdown 이 불린다.
     public void Quit()

@@ -29,6 +29,11 @@ public sealed class TodoItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Color { get; set; }
 
+    // 할 일 그룹 id (groups.json). 없으면 그룹 없음.
+    [JsonPropertyName("group")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Group { get; set; }
+
     // 아주 예전 자료는 done 불리언을 썼다 - 읽을 때만 쓰고 저장하지 않는다
     [JsonPropertyName("done")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -53,6 +58,18 @@ public sealed class LinkGroup
 public sealed class LinksFile
 {
     [JsonPropertyName("groups")] public List<LinkGroup> Groups { get; set; } = new();
+}
+
+// 할 일 그룹 - 링크 그룹과는 따로 둔다. groups.json : { "groups": [ { id, name } ] }
+public sealed class MemoGroup
+{
+    [JsonPropertyName("id")] public string Id { get; set; } = "";
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+}
+
+public sealed class GroupsFile
+{
+    [JsonPropertyName("groups")] public List<MemoGroup> Groups { get; set; } = new();
 }
 
 public sealed class Bounds
@@ -81,5 +98,7 @@ public sealed class Settings
     // 등록일 정렬 - false 면 오래된 것이 위
     [JsonPropertyName("newestFirst")] public bool NewestFirst { get; set; }
     [JsonPropertyName("linksTarget")] public string LinksTarget { get; set; } = "inbox";
+    // 보고 있는 할 일 그룹 - null 이면 전체
+    [JsonPropertyName("memoGroup")] public string? MemoGroup { get; set; }
     [JsonPropertyName("migratedFromElectron")] public bool MigratedFromElectron { get; set; }
 }

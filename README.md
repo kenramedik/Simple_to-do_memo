@@ -16,6 +16,7 @@ Since 3.0.0 it is a native Windows app written in C# and WPF (`wpf/`). The windo
 - **Day-by-day lists**: every date holds its own items. Jump around with the arrows, the Today button, or the calendar
 - **Three-state checking**: click once to mark an item done, twice to mark it dropped, three times to clear it
 - **Carries forward until you deal with it**: an unchecked item reappears on following weekdays, and keeps coming back until you mark it done or dropped. Weekends are skipped
+- **Groups**: sort to-do items into groups such as Work and Personal. Tabs under the date switch between All and each group, and the list, progress bar and calendar counts follow the selected tab. New items go into the group you're viewing. Create a group with `+`, rename it by double-clicking its tab, and right-click a tab to reorder or delete it. Right-click an item to move it to another group. Deleting a group keeps its items, which become ungrouped. Pinned items and search always cover every group
 - **Calendar**: shows how many items each day holds, and marks South Korean public holidays (2025–2030) with a red tint and a tooltip naming the holiday
 - **Pinning**: keep important items at the top regardless of the date. Paged three at a time, scrollable with the mouse wheel, with a button that jumps to the item's original date
 - **Search**: `Ctrl+F` searches every date at once. Matches are highlighted, and clicking a result jumps to that day

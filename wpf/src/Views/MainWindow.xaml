@@ -107,8 +107,11 @@
                 </TextBlock>
             </DockPanel>
 
+            <!-- 할 일 그룹 탭 - 전체 · 그룹들 · + -->
+            <WrapPanel x:Name="GroupBar" Margin="0,12,0,0" Orientation="Horizontal"/>
+
             <!-- 진행률. 항목이 없어도 자리는 남겨야 아래 영역이 위아래로 밀리지 않는다 -->
-            <Grid x:Name="Progress" Height="14" Margin="0,14,0,12">
+            <Grid x:Name="Progress" Height="14" Margin="0,6,0,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>

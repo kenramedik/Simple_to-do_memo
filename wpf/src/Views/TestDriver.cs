@@ -1,4 +1,4 @@
-#if DEBUG
+﻿#if DEBUG
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -137,6 +137,11 @@ static class TestDriver
             log.Add("links: " + LinkOrder(app) + " collapsed=" + string.Join(",", app.Links.Select(g => g.Collapsed)));
             log.Add($"settings: lang={app.Settings.Lang} newestFirst={app.Settings.NewestFirst} link={app.Settings.Link.Url}?{app.Settings.Link.Param} deleteLock={app.Settings.DeleteLock} migrated={app.Settings.MigratedFromElectron}");
             Shot(w, "i01-imported");
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("SIMPLETODOMEMO_TEST_MODE") == "groups")
+        {
+            await Groups(app);
             return;
         }
         await Wait(500);
@@ -287,6 +292,133 @@ static class TestDriver
         var dlg = Application.Current.Windows.OfType<LinkSettingsWindow>().FirstOrDefault();
         if (dlg != null) { Shot(dlg, "m13-link-settings"); dlg.Close(); }
         await Wait(300);
+    }
+
+    /* ─── 할 일 그룹 ─── 오늘 날짜에 그룹 없는 항목 몇 개가 있는 자료로 시작한다 */
+    static void PressKey(UIElement el, Key key)
+    {
+        var src = PresentationSource.FromVisual((Visual)el)!;
+        el.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, src, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+    }
+    static List<Button> Tabs(MainWindow w) => w.GroupBar.Children.OfType<Button>().ToList();
+    static string Day(App app) => string.Join(" | ", app.Memos.Data[DateTime.Today.ToString("yyyy-MM-dd")]
+        .Select(x => x.Text + (x.Group != null ? "@" + (app.Groups.Find(g => g.Id == x.Group)?.Name ?? "?" + x.Group) : "")));
+
+    static async Task NewGroup(MainWindow w, string name)
+    {
+        ClickBtn(Tabs(w).Last());
+        await Wait(150);
+        var inp = Find<TextBox>(w.GroupBar).First();
+        inp.Text = name;
+        PressKey(inp, System.Windows.Input.Key.Enter);
+        await Wait(150);
+    }
+
+    static async Task Groups(App app)
+    {
+        var w = app.MainWin;
+        await Wait(500);
+        Shot(w, "g01-no-groups");
+
+        ClickBtn(Tabs(w).Last());
+        await Wait(200);
+        Find<TextBox>(w.GroupBar).First().Text = "업무";
+        Shot(w, "g02-editor");
+        PressKey(Find<TextBox>(w.GroupBar).First(), System.Windows.Input.Key.Enter);
+        await Wait(200);
+        log.Add($"after 업무: groups={string.Join(",", app.Groups.Select(g => g.Name))} sel={app.Settings.MemoGroup}");
+        Shot(w, "g03-empty-group");
+
+        w.Input.Text = "분기 보고서 작성";
+        Call(w, "AddItem");
+        w.Input.Text = "고객사 메일 회신 (123456)";
+        Call(w, "AddItem");
+        await Wait(150);
+
+        // Esc 로 새 그룹 만들기를 그만두면 아무것도 생기지 않는다
+        ClickBtn(Tabs(w).Last());
+        await Wait(150);
+        Find<TextBox>(w.GroupBar).First().Text = "버릴 그룹";
+        PressKey(Find<TextBox>(w.GroupBar).First(), System.Windows.Input.Key.Escape);
+        await Wait(150);
+        log.Add($"after esc: groups={string.Join(",", app.Groups.Select(g => g.Name))}");
+
+        await NewGroup(w, "개인");
+        w.Input.Text = "헬스장 등록";
+        Call(w, "AddItem");
+        await Wait(150);
+        Shot(w, "g04-personal");
+        log.Add("day: " + Day(app));
+
+        ClickBtn(Tabs(w)[0]);   // 전체
+        await Wait(200);
+        Shot(w, "g05-all");
+        log.Add($"all rows={w.ListPanel.Children.Count} sel={app.Settings.MemoGroup ?? "null"}");
+
+        // 그룹 없는 할 일을 우클릭 메뉴로 업무에 넣는다
+        RightClick(Card(w.ListPanel, 1));
+        await Wait(300);
+        var menu = OpenMenu();
+        if (menu != null)
+        {
+            Shot(menu, "g06-item-menu");
+            var to = menu.Items.OfType<MenuItem>().First(m => (m.Header as string) == "업무");
+            to.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            menu.IsOpen = false;
+        }
+        await Wait(200);
+        log.Add("moved: " + Day(app));
+
+        // 업무 탭에서 끌어 순서 바꾸기 - 사이에 안 보이는 항목이 끼어 있다
+        ClickBtn(Tabs(w)[1]);
+        await Wait(200);
+        log.Add($"work rows={w.ListPanel.Children.Count}");
+        int n = w.ListPanel.Children.Count;
+        var lastRow = (Grid)w.ListPanel.Children[n - 1];
+        var target = lastRow.TranslatePoint(new Point(lastRow.ActualWidth / 2, lastRow.ActualHeight * .85), w.ListPanel);
+        log.Add("before drag: " + Day(app));
+        await Drag(w, w.ListScroll, w.ListPanel, Card(w.ListPanel, 0), target, "g07-dragging");
+        log.Add("after drag:  " + Day(app));
+        Shot(w, "g08-work");
+
+        // 탭 우클릭 메뉴, 순서 바꾸기, 이름 바꾸기
+        RightClick(Tabs(w)[1]);
+        await Wait(300);
+        menu = OpenMenu();
+        if (menu != null) { Shot(menu, "g09-tab-menu"); menu.IsOpen = false; }
+        Call(w, "MoveGroup", 0, 1);
+        await Wait(100);
+        log.Add($"moved group: {string.Join(",", app.Groups.Select(g => g.Name))}");
+        Call(w, "StartGroupEdit", app.Groups[0], Tabs(w)[1]);
+        await Wait(150);
+        var ren = Find<TextBox>(w.GroupBar).First();
+        ren.Text = "개인 생활과 건강 관리 관련 일들";
+        PressKey(ren, System.Windows.Input.Key.Enter);
+        await Wait(200);
+        Shot(w, "g10-renamed");
+
+        ClickBtn(w.MonthBtn);
+        await Wait(200);
+        Shot(w, "g11-calendar");
+        ClickBtn(w.CalClose);
+
+        w.Width = 360; w.Height = 640;
+        await Wait(300);
+        Shot(w, "g12-narrow");
+        app.SetLang("en");
+        await Wait(300);
+        Shot(w, "g13-en");
+        app.SetLang("ko");
+        w.Width = 460; w.Height = 740;
+
+        // 그룹 삭제 - 할 일은 남고 그룹만 빠진다
+        var work = app.Groups.First(g => g.Name == "업무");
+        Call(w, "DeleteGroup", work);
+        await Wait(200);
+        log.Add($"after delete: groups={string.Join(",", app.Groups.Select(g => g.Name))} sel={app.Settings.MemoGroup ?? "null"}");
+        log.Add("day: " + Day(app));
+        Shot(w, "g14-deleted");
+        log.Add("groups.json: " + File.ReadAllText(Path.Combine(SimpleToDoMemo.Core.Storage.Dir, "groups.json")).Replace("\r\n", " "));
     }
 }
 #endif

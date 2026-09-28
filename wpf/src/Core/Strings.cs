@@ -114,6 +114,17 @@ public sealed class Strings
     public string Name { get; init; } = "";
     public string Url { get; init; } = "";
 
+    // 할 일 그룹
+    public string AllGroups { get; init; } = "";
+    public string GroupNamePh { get; init; } = "";
+    public string GroupHeading { get; init; } = "";
+    public string MoveLeft { get; init; } = "";
+    public string MoveRight { get; init; } = "";
+    public string DelMemoGroup { get; init; } = "";
+    public Func<string, string> AddToGroup { get; init; } = s => s;
+    public Func<string, string> EmptyGroupTitle { get; init; } = s => s;
+    public string GroupChipTip { get; init; } = "";
+
     public string ImportDone { get; init; } = "";
     public string ImportNone { get; init; } = "";
     public string ImportAsk { get; init; } = "";
@@ -176,6 +187,12 @@ public sealed class Strings
         DelGroup = "그룹 삭제", DelGroupTip = "그룹 삭제 · 링크는 '그룹 없음'으로 옮겨집니다", MoveTo = "다른 그룹으로 옮기기",
         Fold = "접기", Unfold = "펼치기", DragMoveTip = "드래그해서 옮기기",
         EditLinkTitle = "링크 수정", Name = "이름", Url = "주소",
+        AllGroups = "전체", GroupNamePh = "그룹 이름", GroupHeading = "그룹",
+        MoveLeft = "왼쪽으로 옮기기", MoveRight = "오른쪽으로 옮기기",
+        DelMemoGroup = "그룹 삭제 · 할 일은 지워지지 않음",
+        AddToGroup = g => $"{g}에 할 일을 입력하세요",
+        EmptyGroupTitle = g => $"이 날 {g}에는 할 일이 없습니다",
+        GroupChipTip = "더블클릭: 이름 바꾸기 · 우클릭: 더 보기",
         ImportAsk = "v2.x 이하 버전의 메모와 링크를 찾았습니다.\n지금 가져올까요? 이 버전에 있는 메모와 링크는 가져온 내용으로 바뀝니다.",
         ImportDone = "v2.x 이하 버전의 메모와 링크를 가져왔습니다.",
         ImportNone = "v2.x 이하 버전의 메모와 링크를 찾지 못했습니다.\n이 PC에서 v2.x 이하 버전을 쓴 적이 없거나, 자료 폴더(%APPDATA%\\SimpleToDoMemo)가 지워진 것 같습니다.",
@@ -236,6 +253,12 @@ public sealed class Strings
         DelGroup = "Delete group", DelGroupTip = "Delete group · its links move to Ungrouped", MoveTo = "Move to group",
         Fold = "Collapse", Unfold = "Expand", DragMoveTip = "Drag to move",
         EditLinkTitle = "Edit link", Name = "Name", Url = "URL",
+        AllGroups = "All", GroupNamePh = "Group name", GroupHeading = "Group",
+        MoveLeft = "Move left", MoveRight = "Move right",
+        DelMemoGroup = "Delete group · keeps its tasks",
+        AddToGroup = g => $"Add a task to {g}",
+        EmptyGroupTitle = g => $"Nothing in {g} on this day",
+        GroupChipTip = "Double-click to rename · right-click for more",
         ImportAsk = "Found notes and links from version 2.x or earlier.\nImport them now? Notes and links in this version will be replaced.",
         ImportDone = "Imported notes and links from version 2.x or earlier.",
         ImportNone = "No notes or links from version 2.x or earlier were found.\nVersion 2.x or earlier may never have been used on this PC, or its data folder (%APPDATA%\\SimpleToDoMemo) was removed.",
